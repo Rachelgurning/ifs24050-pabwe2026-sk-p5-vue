@@ -5,8 +5,10 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   return {
+    appType: 'spa',
     plugins: [vue(), tailwindcss()],
     server: {
+      host: true,
       port: Number(env.APP_PORT) || 3000,
     },
     define: {
