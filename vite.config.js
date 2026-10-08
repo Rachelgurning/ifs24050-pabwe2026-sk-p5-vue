@@ -12,6 +12,10 @@ export default defineConfig(({ mode }) => {
     define: {
       DELCOM_BASEURL: JSON.stringify(env.VITE_DELCOM_BASEURL),
     },
+    build: {
+      sourcemap: false,
+      cssCodeSplit: true,
+    },
     test: {
       environment: 'jsdom',
       globals: true,
