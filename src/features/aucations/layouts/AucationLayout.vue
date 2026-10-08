@@ -1,0 +1,1 @@
+<template><div class="min-h-screen bg-slate-100"><NavbarComponent/><div class="flex"><SidebarComponent/><main class="min-w-0 flex-1 p-4 sm:p-6"><RouterView/></main></div></div></template><script setup>import NavbarComponent from '../components/NavbarComponent.vue';import SidebarComponent from '../components/SidebarComponent.vue'</script>
