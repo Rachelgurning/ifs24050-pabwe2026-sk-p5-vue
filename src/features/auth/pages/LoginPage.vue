@@ -7,14 +7,14 @@
     </div>
     <form class="space-y-5" @submit.prevent="handleLogin">
       <div>
-        <label for="login-email" class="label">Email</label>
-        <input id="login-email" v-model.trim="email" class="input" type="email" autocomplete="email" placeholder="nama@email.com" required />
+        <label for="login-email-input" class="label">Email</label>
+        <input id="login-email-input" data-testid="login-email-input" v-model.trim="email" class="input" type="email" autocomplete="email" placeholder="nama@email.com" required />
       </div>
       <div>
-        <label for="login-password" class="label">Password</label>
-        <input id="login-password" v-model="password" class="input" type="password" autocomplete="current-password" placeholder="Masukkan password" required />
+        <label for="login-password-input" class="label">Password</label>
+        <input id="login-password-input" data-testid="login-password-input" v-model="password" class="input" type="password" autocomplete="current-password" placeholder="Masukkan password" required />
       </div>
-      <button class="btn-primary flex w-full items-center justify-center" type="submit" :disabled="authStore.isAuthLogin">
+      <button id="login-submit-button" data-testid="login-submit-button" class="btn-primary flex w-full items-center justify-center" type="submit" :disabled="authStore.isAuthLogin">
         {{ authStore.isAuthLogin ? 'Memproses...' : 'Masuk' }}
       </button>
     </form>

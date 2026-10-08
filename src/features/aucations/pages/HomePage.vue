@@ -7,7 +7,7 @@
           <h1 class="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">Temukan lelang terbaik.</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-indigo-100">Cari barang, pantau penawaran, dan kelola lelang kamu dalam satu tempat.</p>
         </div>
-        <button class="rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-50" type="button" @click="showAdd = true">+ Tambah Lelang</button>
+        <button id="add-auction-button" data-testid="add-auction-button" class="rounded-xl bg-white px-5 py-3 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-50" type="button" @click="showAdd = true">+ Tambah Lelang</button>
       </div>
     </section>
 
@@ -30,7 +30,7 @@
       </div>
     </section>
 
-    <section aria-labelledby="auction-list-title">
+    <section id="auction-list-section" aria-labelledby="auction-list-title">
       <div class="mb-4 flex items-end justify-between"><div><h2 id="auction-list-title" class="text-xl font-extrabold text-slate-900">Daftar Lelang</h2><p class="mt-1 text-sm text-slate-500">{{ filtered.length }} item ditemukan</p></div></div>
       <div v-if="store.isAucation" class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3"><div v-for="i in 6" :key="i" class="h-96 animate-pulse rounded-2xl bg-white"></div></div>
       <div v-else-if="!filtered.length" class="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center"><Gavel class="mx-auto text-slate-300" :size="44"/><h3 class="mt-4 font-bold text-slate-800">Belum ada lelang</h3><p class="mt-1 text-sm text-slate-500">Coba ubah filter pencarian atau buat lelang baru.</p></div>

@@ -12,7 +12,7 @@
           <UserCircle :size="18" />
           <span>{{ auth.user?.name || 'Profil Saya' }}</span>
         </RouterLink>
-        <button class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100" type="button" @click="logout">Keluar</button>
+        <button id="logout-button" data-testid="logout-button" class="rounded-xl bg-red-50 px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-100" type="button" @click="logout">Keluar</button>
       </div>
     </div>
   </header>

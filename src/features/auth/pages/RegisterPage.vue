@@ -6,10 +6,10 @@
       <p class="mt-2 text-sm leading-6 text-slate-500">Daftarkan akun untuk mulai mengikuti dan membuat lelang.</p>
     </div>
     <form class="space-y-5" @submit.prevent="handleRegister">
-      <div><label for="register-name" class="label">Nama Lengkap</label><input id="register-name" v-model.trim="name" class="input" autocomplete="name" required /></div>
-      <div><label for="register-email" class="label">Email</label><input id="register-email" v-model.trim="email" class="input" type="email" autocomplete="email" required /></div>
-      <div><label for="register-password" class="label">Password</label><input id="register-password" v-model="password" class="input" type="password" minlength="6" autocomplete="new-password" required /></div>
-      <button class="btn-primary w-full" type="submit" :disabled="authStore.isAuthRegister">{{ authStore.isAuthRegister ? 'Memproses...' : 'Daftar' }}</button>
+      <div><label for="register-name" class="label">Nama Lengkap</label><input id="register-name-input" data-testid="register-name-input" v-model.trim="name" class="input" autocomplete="name" required /></div>
+      <div><label for="register-email" class="label">Email</label><input id="register-email-input" data-testid="register-email-input" v-model.trim="email" class="input" type="email" autocomplete="email" required /></div>
+      <div><label for="register-password" class="label">Password</label><input id="register-password-input" data-testid="register-password-input" v-model="password" class="input" type="password" minlength="6" autocomplete="new-password" required /></div>
+      <button id="register-submit-button" data-testid="register-submit-button" class="btn-primary w-full" type="submit" :disabled="authStore.isAuthRegister">{{ authStore.isAuthRegister ? 'Memproses...' : 'Daftar' }}</button>
     </form>
     <p class="mt-6 text-center text-sm text-slate-500">Sudah punya akun? <RouterLink class="font-bold text-indigo-600 hover:underline" to="/auth/login">Masuk</RouterLink></p>
   </section>

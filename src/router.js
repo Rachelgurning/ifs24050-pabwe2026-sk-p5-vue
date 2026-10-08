@@ -7,4 +7,4 @@ const routes=[
  {path:'/',component:AucationLayout,meta:{auth:true},children:[{path:'',name:'home',component:HomePage},{path:'aucations/:aucationId',name:'aucation-detail',component:DetailPage},{path:'users',name:'users',component:UsersPage},{path:'profile',name:'profile',component:ProfilePage}]},
  {path:'/:pathMatch(.*)*',name:'not-found',component:NotFoundPage}
 ];
-const router=createRouter({history:createWebHistory(),routes});router.beforeEach(to=>{const token=getAccessToken();if(to.meta.auth&&!token)return {name:'login',query:{redirect:to.fullPath}};if(to.meta.guest&&token)return {name:'home'};return true});export default router;
+const router=createRouter({history:createWebHistory(import.meta.env.BASE_URL),routes});router.beforeEach(to=>{const token=getAccessToken();if(to.meta.auth&&!token)return {name:'login',query:{redirect:to.fullPath}};if(to.meta.guest&&token)return {name:'home'};return true});export default router;

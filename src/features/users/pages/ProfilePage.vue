@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div id="profile-page" class="space-y-6">
     <section><p class="text-xs font-bold uppercase tracking-wider text-indigo-600">Account</p><h1 class="page-title mt-1">Profil Saya</h1><p class="page-subtitle">Kelola informasi profil, foto, dan keamanan akun.</p></section>
     <div v-if="usersStore.isLoading && !usersStore.profile" class="h-96 animate-pulse rounded-3xl bg-white"></div>
     <div v-else class="grid gap-6 lg:grid-cols-3">

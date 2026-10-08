@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div id="users-page" class="space-y-6">
     <section><p class="text-xs font-bold uppercase tracking-wider text-indigo-600">Community</p><h1 class="page-title mt-1">Daftar Pengguna</h1><p class="page-subtitle">Direktori pengguna yang terdaftar di Delcom Auction.</p></section>
     <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><label for="user-search" class="sr-only">Cari pengguna</label><input id="user-search" v-model.trim="search" class="input !mt-0" placeholder="Cari nama atau email..." /></section>
     <section aria-labelledby="users-title" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
