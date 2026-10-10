@@ -1,58 +1,41 @@
-import { createRouter, createWebHistory } from 'vue-router';
-import { getAccessToken } from './helpers/apiHelper';
+import { createRouter, createWebHistory } from "vue-router";
+import { getAccessToken } from "./helpers/apiHelper";
+import AuthLayout from "./features/auth/layouts/AuthLayout.vue";
+import LoginPage from "./features/auth/pages/LoginPage.vue";
+import RegisterPage from "./features/auth/pages/RegisterPage.vue";
+import AucationLayout from "./features/aucations/layouts/AucationLayout.vue";
 
-const AuthLayout = () => import('./features/auth/layouts/AuthLayout.vue');
-const LoginPage = () => import('./features/auth/pages/LoginPage.vue');
-const RegisterPage = () => import('./features/auth/pages/RegisterPage.vue');
-const AucationLayout = () => import('./features/aucations/layouts/AucationLayout.vue');
-const HomePage = () => import('./features/aucations/pages/HomePage.vue');
-const DetailPage = () => import('./features/aucations/pages/DetailPage.vue');
-const UsersPage = () => import('./features/users/pages/UsersPage.vue');
-const ProfilePage = () => import('./features/users/pages/ProfilePage.vue');
-const NotFoundPage = () => import('./features/common/pages/NotFoundPage.vue');
-
-const routes = [
+export const routes = [
   {
-    path: '/auth',
+    path: "/auth",
     component: AuthLayout,
     children: [
-      { path: 'login', name: 'login', component: LoginPage, meta: { guest: true } },
-      { path: 'register', name: 'register', component: RegisterPage, meta: { guest: true } },
+      { path: "login", component: LoginPage },
+      { path: "register", component: RegisterPage },
     ],
   },
   {
-    path: '/',
+    path: "/",
     component: AucationLayout,
-    meta: { auth: true },
+    meta: { requiresAuth: true },
     children: [
-      { path: '', name: 'home', component: HomePage },
-      { path: 'aucations/:aucationId', name: 'aucation-detail', component: DetailPage },
-      { path: 'users', name: 'users', component: UsersPage },
-      { path: 'profile', name: 'profile', component: ProfilePage },
+      { path: "", component: () => import("./features/aucations/pages/HomePage.vue") },
+      { path: "aucations/:aucationId", component: () => import("./features/aucations/pages/DetailPage.vue") },
+      { path: "users", component: () => import("./features/users/pages/UsersPage.vue") },
+      { path: "profile", component: () => import("./features/users/pages/ProfilePage.vue") },
     ],
   },
-  { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundPage },
+  { path: "/:pathMatch(.*)*", component: () => import("./features/common/pages/NotFoundPage.vue") },
 ];
 
-const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  routes,
-  scrollBehavior() {
-    return { top: 0 };
-  },
-});
+export function authGuard(to) {
+  const loggedIn = Boolean(getAccessToken());
+  if (to.meta.requiresAuth && !loggedIn) return "/auth/login";
+  if (to.path.startsWith("/auth") && loggedIn) return "/";
+  return true;
+}
 
-router.beforeEach((to, from, next) => {
-  const token = getAccessToken();
-  if (to.meta.auth && !token) {
-    next({ name: 'login', query: { redirect: to.fullPath } });
-    return;
-  }
-  if (to.meta.guest && token) {
-    next({ name: 'home' });
-    return;
-  }
-  next();
-});
+const router = createRouter({ history: createWebHistory(), routes });
+router.beforeEach(authGuard);
 
 export default router;

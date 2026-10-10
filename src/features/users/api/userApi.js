@@ -1,6 +1,7 @@
-import { apiFetch } from '../../../helpers/apiHelper';
-export const getUsersApi = () => apiFetch('/users');
-export const getProfileApi = () => apiFetch('/users/me');
-export const updateProfileApi = (data) => apiFetch('/users/me', { method:'PUT', body:JSON.stringify(data) });
-export const uploadAvatarApi = (file) => { const form=new FormData(); form.append('photo', file); return apiFetch('/users/me/photo',{method:'POST',body:form}); };
-export const updatePasswordApi = (data) => apiFetch('/users/password', { method:'PUT', body:JSON.stringify(data) });
+import { apiFetch } from "../../../helpers/apiHelper";
+
+export const getUsers = () => apiFetch("/users");
+export const getMe = () => apiFetch("/users/me");
+export const putMe = (body) => apiFetch("/users/me", { method: "PUT", body });
+export const postPhoto = (form) => apiFetch("/users/me/photo", { method: "POST", form });
+export const putPassword = (body) => apiFetch("/users/me/password", { method: "PUT", body });

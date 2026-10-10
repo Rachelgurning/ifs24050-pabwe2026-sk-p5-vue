@@ -1,1 +1,9 @@
-<template><main class="min-h-screen bg-slate-100 flex items-center justify-center p-6"><div class="max-w-lg text-center rounded-3xl bg-white p-10 shadow-sm border"><p class="text-7xl font-black text-indigo-700">404</p><h1 class="mt-4 text-2xl font-bold text-slate-900">Halaman Tidak Ditemukan</h1><p class="mt-2 text-slate-600">Rute yang kamu buka tidak tersedia.</p><RouterLink to="/" class="btn-primary mt-6 inline-block">Kembali ke Beranda</RouterLink></div></main></template>
+<template>
+  <main class="flex min-h-screen flex-col items-center justify-center gap-4 p-4 text-center">
+    <h1 class="text-4xl font-extrabold">404 - Halaman tidak ditemukan</h1>
+    <p class="text-slate-700">Halaman yang Anda cari tidak tersedia.</p>
+    <RouterLink to="/" class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white">
+      Kembali ke beranda
+    </RouterLink>
+  </main>
+</template>

@@ -1,44 +1,42 @@
-import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { loginApi, registerApi, logoutApi } from '../api/authApi';
-import { getAccessToken, putAccessToken } from '../../../helpers/apiHelper';
+import { defineStore } from "pinia";
+import { computed, ref } from "vue";
+import { postLogin, postRegister } from "../api/authApi";
+import { getAccessToken, putAccessToken, removeAccessToken } from "../../../helpers/apiHelper";
 
-export const useAuthStore = defineStore('auth', () => {
+export const useAuthStore = defineStore("auth", () => {
   const token = ref(getAccessToken());
-  const user = ref(null);
   const isAuthLogin = ref(false);
   const isAuthRegister = ref(false);
   const isAuthLogout = ref(false);
   const isAuthenticated = computed(() => Boolean(token.value));
 
-  async function login(credentials) {
+  async function login(payload) {
     isAuthLogin.value = true;
-    const res = await loginApi(credentials);
-    if (!res.error && res.status === 'success') {
-      token.value = res.data?.token || '';
-      user.value = res.data?.user || null;
+    try {
+      const json = await postLogin(payload);
+      token.value = json.data.token;
       putAccessToken(token.value);
+      return json.message;
+    } finally {
+      isAuthLogin.value = false;
     }
-    isAuthLogin.value = false;
-    return res;
   }
 
   async function register(payload) {
     isAuthRegister.value = true;
-    const res = await registerApi(payload);
-    isAuthRegister.value = false;
-    return res;
+    try {
+      return (await postRegister(payload)).message;
+    } finally {
+      isAuthRegister.value = false;
+    }
   }
 
-  async function logout() {
+  function logout() {
     isAuthLogout.value = true;
-    const res = await logoutApi();
-    token.value = '';
-    user.value = null;
-    putAccessToken('');
+    removeAccessToken();
+    token.value = null;
     isAuthLogout.value = false;
-    return res;
   }
 
-  return { token, user, isAuthenticated, isAuthLogin, isAuthRegister, isAuthLogout, login, register, logout };
+  return { token, isAuthLogin, isAuthRegister, isAuthLogout, isAuthenticated, login, register, logout };
 });

@@ -1,4 +1,4 @@
-# dependencies (bun install)
+# dependencies
 node_modules
 
 # output
@@ -6,14 +6,15 @@ out
 dist
 *.tgz
 
-# code coverage
+# code coverage and reports
 coverage
+test-results
+.scannerwork
 *.lcov
 
 # logs
 logs
-_.log
-report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+*.log
 
 # dotenv environment variable files
 .env
@@ -27,8 +28,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
-# IntelliJ based IDEs
+# IDEs and OS
 .idea
-
-# Finder (MacOS) folder config
+.vscode
 .DS_Store

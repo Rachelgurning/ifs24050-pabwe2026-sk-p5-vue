@@ -1,1 +1,36 @@
-<template><div v-if="open" class="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4"><form class="w-full max-w-2xl rounded-2xl bg-white p-6 space-y-4" aria-label="Form ubah lelang" @submit.prevent="submit"><h2 class="text-xl font-bold">Ubah Lelang</h2><div><label class="label" for="change-title-input">Judul</label><input id="change-title-input" v-model="form.title" class="input" required/></div><div><label class="label" for="change-description-input">Deskripsi</label><MarkdownEditor id="change-description-input" v-model="form.description"/></div><div class="grid sm:grid-cols-2 gap-4"><div><label class="label" for="change-start-bid-input">Harga Awal</label><input id="change-start-bid-input" v-model.number="form.start_bid" class="input" type="number" min="1" required/></div><div><label class="label" for="change-closed-at-input">Batas Waktu</label><input id="change-closed-at-input" v-model="form.closed_at" class="input" type="datetime-local" required/></div></div><div class="flex gap-2"><button type="button" class="btn-secondary" @click="$emit('close')">Batal</button><button type="submit" class="btn-primary" :disabled="loading">Simpan</button></div></form></div></template><script setup>import {reactive,watch} from 'vue';import MarkdownEditor from '../components/MarkdownEditor.vue';const props=defineProps({open:Boolean,item:Object,loading:Boolean});const emit=defineEmits(['close','submit']);const form=reactive({title:'',description:'',start_bid:0,closed_at:''});watch(()=>props.item,i=>{if(i)Object.assign(form,{title:i.title||'',description:i.description||'',start_bid:i.start_bid||0,closed_at:i.closed_at?i.closed_at.slice(0,16).replace(' ','T'):''})},{immediate:true});function submit(){const d=new Date(form.closed_at);emit('submit',{...form,closed_at:d.toISOString().slice(0,19).replace('T',' ')})}</script>
+<script setup>
+import { ref } from "vue";
+import ModalDialog from "./ModalDialog.vue";
+import AucationForm from "./AucationForm.vue";
+import { useAucationsStore } from "../states/aucationsStore";
+import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+
+const props = defineProps({ aucation: { type: Object, required: true } });
+const emit = defineEmits(["changed"]);
+const store = useAucationsStore();
+const dialog = ref(null);
+defineExpose({ open: () => dialog.value.open() });
+
+async function submit(payload) {
+  try {
+    const message = await store.changeAucation(props.aucation.id, payload);
+    dialog.value.close();
+    await showSuccessDialog(message);
+    emit("changed");
+  } catch (error) {
+    showErrorDialog(error.message);
+  }
+}
+</script>
+
+<template>
+  <ModalDialog ref="dialog" title="Ubah Lelang" title-id="change-modal-title">
+    <AucationForm
+      id-prefix="change"
+      :initial="aucation"
+      :busy="store.isAucationChange"
+      @submit="submit"
+      @cancel="dialog.close()"
+    />
+  </ModalDialog>
+</template>

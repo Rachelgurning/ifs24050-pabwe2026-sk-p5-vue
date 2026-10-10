@@ -1,1 +1,24 @@
-<template><div class="min-h-screen bg-slate-100"><NavbarComponent/><div class="flex"><SidebarComponent/><main id="main-content" class="min-w-0 flex-1 p-4 sm:p-6"><RouterView/></main></div></div></template><script setup>import NavbarComponent from '../components/NavbarComponent.vue';import SidebarComponent from '../components/SidebarComponent.vue'</script>
+<script setup>
+import { ref } from "vue";
+import { useRouter } from "vue-router";
+import NavbarComponent from "../components/NavbarComponent.vue";
+import SidebarComponent from "../components/SidebarComponent.vue";
+import { useAuthStore } from "../../auth/states/authStore";
+
+const auth = useAuthStore();
+const router = useRouter();
+const menuOpen = ref(false);
+
+function logout() {
+  auth.logout();
+  router.replace("/auth/login");
+}
+</script>
+
+<template>
+  <NavbarComponent :menu-open="menuOpen" @toggle-menu="menuOpen = !menuOpen" @logout="logout" />
+  <div class="md:flex">
+    <SidebarComponent :open="menuOpen" />
+    <main class="mx-auto w-full max-w-5xl p-4"><RouterView /></main>
+  </div>
+</template>

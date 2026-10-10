@@ -1,3 +1,33 @@
-<template><header class="h-16 bg-white border-b px-4 sm:px-6 flex items-center justify-between" aria-label="Navigasi utama"><RouterLink to="/" class="font-bold text-xl text-indigo-700">Delcom Auction</RouterLink><nav class="flex items-center gap-3" aria-label="Menu akun"><RouterLink to="/profile" class="hidden sm:block text-sm font-medium text-slate-700">{{auth.user?.name||'Profil'}}</RouterLink><button type="button" class="rounded-lg bg-red-50 text-red-700 px-3 py-2 text-sm font-semibold" @click="logout">Keluar</button></nav></header></template>
-<script setup>import {useRouter} from 'vue-router';import {useAuthStore} from '../../auth/states/authStore';import {showConfirmDialog} from '../../../helpers/toolsHelper';const router=useRouter();const auth=useAuthStore();async function logout(){const r=await showConfirmDialog('Keluar?','Sesi kamu akan diakhiri.');if(r.isConfirmed){await auth.logout();router.push('/auth/login')}}
+<script setup>
+defineProps({ menuOpen: { type: Boolean, default: false } });
+defineEmits(["toggle-menu", "logout"]);
+
+const logoUrl = "/logo.svg";
 </script>
+
+<template>
+  <header class="flex items-center justify-between bg-white px-4 py-3 shadow">
+    <div class="flex items-center gap-3">
+      <button
+        type="button"
+        class="rounded-lg bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-900 md:hidden"
+        aria-controls="sidebar-menu"
+        :aria-expanded="menuOpen"
+        @click="$emit('toggle-menu')"
+      >
+        Menu
+      </button>
+      <RouterLink to="/" class="flex items-center gap-2 font-bold text-indigo-700">
+        <img :src="logoUrl" alt="" width="24" height="24" />
+        Delcom Auction
+      </RouterLink>
+    </div>
+    <button
+      type="button"
+      class="rounded-lg bg-indigo-700 px-3 py-1 text-sm font-semibold text-white"
+      @click="$emit('logout')"
+    >
+      Keluar
+    </button>
+  </header>
+</template>

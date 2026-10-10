@@ -1,53 +1,134 @@
-<template>
-<div class="space-y-6"><div><h1 class="page-title">Profil Saya</h1><p class="page-subtitle">Kelola informasi profil, foto, dan keamanan akun.</p></div>
-<output v-if="usersStore.isLoading" class="block rounded-2xl bg-white p-8 text-center text-slate-600" aria-live="polite">Memuat profil...</output>
-<div v-else class="grid gap-6 lg:grid-cols-3">
-<div class="rounded-2xl bg-white border p-6 text-center"><img :src="usersStore.profile?.photo || avatar" :alt="`Foto profil ${usersStore.profile?.name || 'pengguna'}`" class="mx-auto h-28 w-28 rounded-full object-cover bg-slate-100" @error="useFallback"/><h2 class="mt-4 text-xl font-bold">{{usersStore.profile?.name || '-'}}</h2><p class="text-sm text-slate-600">{{usersStore.profile?.email || '-'}}</p><label for="profile-photo-input" class="mt-5 inline-block cursor-pointer rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800">{{usersStore.isUploadingPhoto?'Mengunggah...':'Ganti Foto'}}<input id="profile-photo-input" type="file" accept="image/*" class="hidden" @change="changePhoto"/></label></div>
-<div class="lg:col-span-2 space-y-6"><form class="rounded-2xl bg-white border p-6 space-y-4" aria-label="Form informasi profil" @submit.prevent="saveProfile"><h2 class="text-lg font-bold">Informasi Profil</h2><div><label class="label" for="profile-name-input">Nama</label><input id="profile-name-input" v-model="form.name" class="input" autocomplete="name" required /></div><div><label class="label" for="profile-email-input">Email</label><input id="profile-email-input" v-model="form.email" class="input" type="email" autocomplete="email" required /></div><button type="submit" class="btn-primary" :disabled="usersStore.isUpdating">Simpan Perubahan</button></form>
-<form class="rounded-2xl bg-white border p-6 space-y-4" aria-label="Form ganti password" @submit.prevent="savePassword"><h2 class="text-lg font-bold">Ganti Password</h2><div><label class="label" for="current-password-input">Password saat ini</label><input id="current-password-input" v-model="password.password" class="input" type="password" autocomplete="current-password" required/></div><div><label class="label" for="new-password-input">Password baru</label><input id="new-password-input" v-model="password.new_password" class="input" type="password" autocomplete="new-password" minlength="6" required/></div><div><label class="label" for="confirm-password-input">Konfirmasi password baru</label><input id="confirm-password-input" v-model="password.new_password_confirmation" class="input" type="password" autocomplete="new-password" minlength="6" required/></div><button type="submit" class="btn-primary" :disabled="usersStore.isChangingPassword">Ganti Password</button></form></div></div></div>
-</template>
 <script setup>
-import { onMounted, reactive } from 'vue'; import { useUsersStore } from '../states/usersStore'; import { showErrorDialog, showSuccessDialog } from '../../../helpers/toolsHelper';
-const usersStore=useUsersStore(); const avatar='https://ui-avatars.com/api/?name=User'; const form=reactive({name:'',email:''}); const password=reactive({password:'',new_password:'',new_password_confirmation:''});
-function useFallback(e){e.target.src=avatar}
-onMounted(async () => {
-  const result = await usersStore.fetchProfile();
-  if (result.status === 'success') {
-    form.name = usersStore.profile?.name || '';
-    form.email = usersStore.profile?.email || '';
-  }
-})
-async function saveProfile() {
-  const result = await usersStore.updateProfile(form);
-  if (result.status === 'success') {
-    await showSuccessDialog('Berhasil', 'Profil diperbarui.');
-  } else {
-    await showErrorDialog('Gagal', result.message || 'Gagal memperbarui profil.');
-  }
-}
-async function changePhoto(event) {
-  const file = event.target.files?.[0];
-  if (!file) {
-    return;
-  }
-  const result = await usersStore.uploadPhoto(file);
-  if (result.status === 'success') {
-    await showSuccessDialog('Berhasil', 'Foto profil diperbarui.');
-  } else {
-    await showErrorDialog('Gagal', result.message || 'Gagal mengunggah foto.');
+import { onMounted, ref, watch } from "vue";
+import { useUsersStore } from "../states/usersStore";
+import { useInput } from "../../../hooks/useInput";
+import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+
+const store = useUsersStore();
+const [name, onName] = useInput("");
+const [oldPassword, onOldPassword] = useInput("");
+const [newPassword, onNewPassword] = useInput("");
+const photo = ref(null);
+
+watch(
+  () => store.profile,
+  (profile) => {
+    name.value = profile.name;
+  },
+);
+
+onMounted(() => store.fetchProfile().catch((error) => showErrorDialog(error.message)));
+
+async function run(action) {
+  try {
+    await showSuccessDialog(await action());
+  } catch (error) {
+    showErrorDialog(error.message);
   }
 }
-async function savePassword() {
-  if (password.new_password !== password.new_password_confirmation) {
-    await showErrorDialog('Gagal', 'Konfirmasi password baru tidak sama.');
-    return;
-  }
-  const result = await usersStore.changePassword(password);
-  if (result.status === 'success') {
-    await showSuccessDialog('Berhasil', 'Password berhasil diubah.');
-    Object.assign(password, { password: '', new_password: '', new_password_confirmation: '' });
-  } else {
-    await showErrorDialog('Gagal', result.message || 'Gagal mengubah password.');
-  }
+
+const submitProfile = () => run(() => store.changeProfile({ name: name.value }));
+
+const submitPassword = () =>
+  run(() => store.changePassword({ password: oldPassword.value, new_password: newPassword.value }));
+
+function submitPhoto() {
+  const form = new FormData();
+  form.append("photo", photo.value.files[0]);
+  return run(() => store.changePhoto(form));
 }
 </script>
+
+<template>
+  <h1 class="mb-4 text-2xl font-extrabold">Profil Saya</h1>
+  <p v-if="!store.profile" role="status" class="text-slate-700">Memuat profil...</p>
+  <div v-else class="grid max-w-3xl gap-4 md:grid-cols-2">
+    <section aria-labelledby="profile-heading" class="rounded-xl bg-white p-6 shadow">
+      <h2 id="profile-heading" class="text-lg font-bold">Data akun</h2>
+      <p class="mt-1 text-sm text-slate-700">Email: {{ store.profile.email }}</p>
+      <form class="mt-4 space-y-3" @submit.prevent="submitProfile">
+        <div>
+          <label for="profile-name-input" class="mb-1 block text-sm font-semibold text-slate-700">Nama lengkap</label>
+          <input
+            id="profile-name-input"
+            required
+            :value="name"
+            class="w-full rounded-lg border border-slate-400 px-3 py-2"
+            @input="onName"
+          />
+        </div>
+        <button
+          type="submit"
+          :disabled="store.isProfileChange"
+          class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-70"
+        >
+          Simpan profil
+        </button>
+      </form>
+    </section>
+
+    <section aria-labelledby="photo-heading" class="rounded-xl bg-white p-6 shadow">
+      <h2 id="photo-heading" class="text-lg font-bold">Foto profil</h2>
+      <form class="mt-4 space-y-3" @submit.prevent="submitPhoto">
+        <div>
+          <label for="profile-photo-input" class="mb-1 block text-sm font-semibold text-slate-700">Pilih gambar</label>
+          <input
+            id="profile-photo-input"
+            ref="photo"
+            type="file"
+            accept="image/*"
+            required
+            class="w-full rounded-lg border border-slate-400 px-3 py-2"
+          />
+        </div>
+        <button
+          type="submit"
+          :disabled="store.isPhotoChange"
+          class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-70"
+        >
+          Unggah foto
+        </button>
+      </form>
+    </section>
+
+    <section aria-labelledby="password-heading" class="rounded-xl bg-white p-6 shadow md:col-span-2">
+      <h2 id="password-heading" class="text-lg font-bold">Ubah kata sandi</h2>
+      <form class="mt-4 grid gap-3 sm:grid-cols-2" @submit.prevent="submitPassword">
+        <div>
+          <label for="profile-old-password" class="mb-1 block text-sm font-semibold text-slate-700">Kata sandi lama</label>
+          <input
+            id="profile-old-password"
+            type="password"
+            autocomplete="current-password"
+            required
+            :value="oldPassword"
+            class="w-full rounded-lg border border-slate-400 px-3 py-2"
+            @input="onOldPassword"
+          />
+        </div>
+        <div>
+          <label for="profile-new-password" class="mb-1 block text-sm font-semibold text-slate-700">Kata sandi baru</label>
+          <input
+            id="profile-new-password"
+            type="password"
+            autocomplete="new-password"
+            minlength="6"
+            required
+            :value="newPassword"
+            class="w-full rounded-lg border border-slate-400 px-3 py-2"
+            @input="onNewPassword"
+          />
+        </div>
+        <div class="sm:col-span-2">
+          <button
+            type="submit"
+            :disabled="store.isPasswordChange"
+            class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-70"
+          >
+            Ubah kata sandi
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+</template>

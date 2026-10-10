@@ -1,9 +1,10 @@
-import { ref } from 'vue';
+import { ref } from "vue";
 
-export function useInput(defaultValue = '') {
-  const value = ref(defaultValue);
+/** Composable untuk state input form beserta handler perubahannya. */
+export function useInput(initialValue = "") {
+  const value = ref(initialValue);
   const onChange = (event) => {
-    value.value = event.target ? event.target.value : event;
+    value.value = event.target.value;
   };
   return [value, onChange];
 }

@@ -1,2 +1,34 @@
-<template><div v-if="open" class="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-4" @click.self="$emit('close')"><form class="w-full max-w-2xl max-h-[90vh] overflow-auto rounded-2xl bg-white p-6 space-y-4" aria-label="Form tambah lelang" @submit.prevent="submit"><div class="flex justify-between"><h2 id="add-auction-title" class="text-xl font-bold">Tambah Lelang</h2><button type="button" aria-label="Tutup dialog" @click="$emit('close')">✕</button></div><div><label class="label" for="add-title-input">Judul</label><input id="add-title-input" v-model="form.title" class="input" required/></div><div><label class="label" for="add-description-input">Deskripsi</label><MarkdownEditor id="add-description-input" v-model="form.description"/></div><div class="grid sm:grid-cols-2 gap-4"><div><label class="label" for="add-start-bid-input">Harga Awal</label><input id="add-start-bid-input" v-model.number="form.start_bid" class="input" type="number" min="1" required/></div><div><label class="label" for="add-closed-at-input">Batas Waktu</label><input id="add-closed-at-input" v-model="form.closed_at" class="input" type="datetime-local" required/></div></div><button type="submit" class="btn-primary" :disabled="loading">{{loading?'Menyimpan...':'Simpan Lelang'}}</button></form></div></template>
-<script setup>import {reactive,watch} from 'vue';import MarkdownEditor from '../components/MarkdownEditor.vue';const props=defineProps({open:Boolean,loading:Boolean});const emit=defineEmits(['close','submit']);const form=reactive({title:'',description:'',start_bid:1000,closed_at:''});watch(()=>props.open,v=>{if(v)Object.assign(form,{title:'',description:'',start_bid:1000,closed_at:''})});function submit(){const d=new Date(form.closed_at);const closed_at=d.toISOString().slice(0,19).replace('T',' ');emit('submit',{...form,closed_at})}</script>
+<script setup>
+import { ref } from "vue";
+import ModalDialog from "./ModalDialog.vue";
+import AucationForm from "./AucationForm.vue";
+import { useAucationsStore } from "../states/aucationsStore";
+import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+
+const emit = defineEmits(["added"]);
+const store = useAucationsStore();
+const dialog = ref(null);
+defineExpose({ open: () => dialog.value.open() });
+
+async function submit(payload) {
+  try {
+    const message = await store.addAucation(payload);
+    dialog.value.close();
+    await showSuccessDialog(message);
+    emit("added");
+  } catch (error) {
+    showErrorDialog(error.message);
+  }
+}
+</script>
+
+<template>
+  <ModalDialog ref="dialog" title="Tambah Lelang" title-id="add-modal-title">
+    <AucationForm
+      id-prefix="add"
+      :busy="store.isAucationAdd"
+      @submit="submit"
+      @cancel="dialog.close()"
+    />
+  </ModalDialog>
+</template>

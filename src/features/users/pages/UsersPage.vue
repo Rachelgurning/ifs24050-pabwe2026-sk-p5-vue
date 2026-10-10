@@ -1,7 +1,19 @@
-<template>
-<section class="space-y-6" aria-labelledby="users-title"><div><h1 id="users-title" class="page-title">Daftar Pengguna</h1><p class="page-subtitle">Direktori seluruh pengguna yang terdaftar di Delcom Auction.</p></div>
-<div class="rounded-2xl bg-white border border-slate-200 overflow-hidden"><output v-if="usersStore.isLoading" class="block p-8 text-center text-slate-600" aria-live="polite">Memuat pengguna...</output><div v-else-if="!usersStore.users.length" class="p-8 text-center text-slate-600">Belum ada data pengguna.</div><div v-else class="divide-y divide-slate-100"><div v-for="user in usersStore.users" :key="user.id" class="flex items-center gap-4 p-5"><img :src="user.photo || fallback" :alt="`Foto ${user.name}`" class="h-12 w-12 rounded-full object-cover bg-slate-100" @error="fallbackImage"/><div class="min-w-0"><p class="font-semibold text-slate-900">{{user.name}}</p><p class="text-sm text-slate-600">{{user.email}}</p></div></div></div></div></section>
-</template>
 <script setup>
-import { onMounted } from 'vue'; import { useUsersStore } from '../states/usersStore'; const usersStore=useUsersStore(); const fallback='https://ui-avatars.com/api/?name=User'; const fallbackImage=(e)=>{e.target.src=fallback}; onMounted(()=>usersStore.fetchUsers());
+import { onMounted } from "vue";
+import { useUsersStore } from "../states/usersStore";
+import { showErrorDialog } from "../../../helpers/toolsHelper";
+
+const store = useUsersStore();
+onMounted(() => store.fetchUsers().catch((error) => showErrorDialog(error.message)));
 </script>
+
+<template>
+  <h1 class="mb-4 text-2xl font-extrabold">Daftar Pengguna</h1>
+  <p v-if="!store.users.length" class="text-slate-700">Belum ada pengguna.</p>
+  <ul class="grid gap-3 sm:grid-cols-2">
+    <li v-for="item in store.users" :key="item.id" class="rounded-xl bg-white p-4 shadow">
+      <p class="font-bold">{{ item.name }}</p>
+      <p class="text-sm text-slate-700">{{ item.email }}</p>
+    </li>
+  </ul>
+</template>

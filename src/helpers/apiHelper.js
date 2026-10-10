@@ -1,36 +1,37 @@
-const BASE_URL = typeof DELCOM_BASEURL !== 'undefined' && DELCOM_BASEURL
-  ? DELCOM_BASEURL
-  : (import.meta.env.VITE_DELCOM_BASEURL || 'https://open-api.delcom.org/api/v1');
+const TOKEN_KEY = "access_token";
 
-export function getAccessToken() {
-  return localStorage.getItem('accessToken') || '';
-}
+export const getAccessToken = () => localStorage.getItem(TOKEN_KEY);
+export const putAccessToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+export const removeAccessToken = () => localStorage.removeItem(TOKEN_KEY);
 
-export function putAccessToken(token) {
-  if (token) localStorage.setItem('accessToken', token);
-  else localStorage.removeItem('accessToken');
-}
+/**
+ * Wrapper fetch ke REST API Delcom.
+ * @param {string} path endpoint, contoh "/auth/login"
+ * @param {{method?: string, params?: object, body?: object, form?: FormData}} options
+ */
+export async function apiFetch(path, { method = "GET", params = {}, body, form } = {}) {
+  const url = new URL(`${DELCOM_BASEURL}${path}`, window.location.origin);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== "" && value != null) url.searchParams.set(key, value);
+  }
 
-export async function apiFetch(endpoint, options = {}) {
+  const headers = {};
   const token = getAccessToken();
-  const headers = {
-    Accept: 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers,
-  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body) headers["Content-Type"] = "application/json";
 
-  if (options.body && !(options.body instanceof FormData) && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
-  }
+  const response = await fetch(url, {
+    method,
+    headers,
+    body: form ?? (body ? JSON.stringify(body) : undefined),
+  });
+  const json = await response.json().catch(() => ({}));
 
-  try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
-    const text = await response.text();
-    const result = text ? JSON.parse(text) : { status: response.ok ? 'success' : 'fail' };
-    return result;
-  } catch (error) {
-    return { status: 'fail', error: true, message: error.message || 'Gagal terhubung ke server.' };
+  if (!response.ok || json.success === false) {
+    throw new Error(json.message || "Terjadi kesalahan pada server");
   }
+  return json;
 }
 
-export { BASE_URL };
+/** Mengambil data[key] jika ada, jika tidak memakai data itu sendiri. */
+export const unwrap = (json, key) => json.data?.[key] ?? json.data;

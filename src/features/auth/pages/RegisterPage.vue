@@ -1,18 +1,76 @@
-<template>
-  <section aria-labelledby="register-title">
-    <h1 id="register-title" class="text-2xl font-bold text-slate-900">Buat akun</h1>
-    <p class="mt-1 text-sm text-slate-600">Daftarkan akun baru untuk menggunakan Delcom Auction.</p>
-    <form class="mt-6 space-y-4" aria-label="Form registrasi" @submit.prevent="handleRegister">
-      <div><label class="label" for="register-name-input">Nama Lengkap</label><input id="register-name-input" data-testid="register-name-input" v-model="name" class="input" required autocomplete="name" /></div>
-      <div><label class="label" for="register-email-input">Email</label><input id="register-email-input" data-testid="register-email-input" v-model="email" class="input" type="email" required autocomplete="email" /></div>
-      <div><label class="label" for="register-password-input">Password</label><input id="register-password-input" data-testid="register-password-input" v-model="password" class="input" type="password" minlength="6" required autocomplete="new-password" /></div>
-      <button type="submit" class="btn-primary w-full" :disabled="authStore.isAuthRegister" :aria-busy="authStore.isAuthRegister">{{ authStore.isAuthRegister ? 'Memproses...' : 'Daftar' }}</button>
-    </form>
-    <p class="mt-5 text-center text-sm text-slate-600">Sudah punya akun? <RouterLink class="font-semibold text-indigo-700 underline-offset-2 hover:underline" to="/auth/login">Masuk</RouterLink></p>
-  </section>
-</template>
 <script setup>
-import { ref } from 'vue'; import { useRouter } from 'vue-router'; import { useAuthStore } from '../states/authStore'; import { showSuccessDialog, showErrorDialog } from '../../../helpers/toolsHelper';
-const name=ref(''); const email=ref(''); const password=ref(''); const authStore=useAuthStore(); const router=useRouter();
-async function handleRegister(){ const res=await authStore.register({name:name.value.trim(),email:email.value.trim(),password:password.value}); if(res.status==='success'){await showSuccessDialog('Berhasil','Registrasi berhasil, silakan login.'); router.push('/auth/login');} else await showErrorDialog('Gagal',res.message||'Data tidak valid.'); }
+import { useRouter } from "vue-router";
+import { useAuthStore } from "../states/authStore";
+import { useInput } from "../../../hooks/useInput";
+import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+
+const auth = useAuthStore();
+const router = useRouter();
+const [name, onName] = useInput("");
+const [email, onEmail] = useInput("");
+const [password, onPassword] = useInput("");
+
+async function submit() {
+  try {
+    const message = await auth.register({ name: name.value, email: email.value, password: password.value });
+    await showSuccessDialog(message);
+    router.replace("/auth/login");
+  } catch (error) {
+    showErrorDialog(error.message);
+  }
+}
 </script>
+
+<template>
+  <h1 class="mb-6 text-center text-2xl font-extrabold">Daftar Akun</h1>
+  <form class="space-y-4" @submit.prevent="submit">
+    <div>
+      <label for="register-name-input" class="mb-1 block text-sm font-semibold text-slate-700">Nama lengkap</label>
+      <input
+        id="register-name-input"
+        type="text"
+        autocomplete="name"
+        required
+        :value="name"
+        class="w-full rounded-lg border border-slate-400 px-3 py-2"
+        @input="onName"
+      />
+    </div>
+    <div>
+      <label for="register-email-input" class="mb-1 block text-sm font-semibold text-slate-700">Alamat email</label>
+      <input
+        id="register-email-input"
+        type="email"
+        autocomplete="email"
+        required
+        :value="email"
+        class="w-full rounded-lg border border-slate-400 px-3 py-2"
+        @input="onEmail"
+      />
+    </div>
+    <div>
+      <label for="register-password-input" class="mb-1 block text-sm font-semibold text-slate-700">Kata sandi</label>
+      <input
+        id="register-password-input"
+        type="password"
+        autocomplete="new-password"
+        minlength="6"
+        required
+        :value="password"
+        class="w-full rounded-lg border border-slate-400 px-3 py-2"
+        @input="onPassword"
+      />
+    </div>
+    <button
+      type="submit"
+      :disabled="auth.isAuthRegister"
+      class="w-full rounded-lg bg-indigo-700 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-70"
+    >
+      Daftar sekarang
+    </button>
+  </form>
+  <p class="mt-4 text-center text-sm text-slate-700">
+    Sudah punya akun?
+    <RouterLink to="/auth/login" class="font-semibold text-indigo-700 underline">Masuk</RouterLink>
+  </p>
+</template>
