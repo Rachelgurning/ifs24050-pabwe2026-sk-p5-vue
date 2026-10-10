@@ -1,37 +1,41 @@
-const TOKEN_KEY = "access_token";
+const TOKEN_KEY = "delcom_auction_token";
 
 export const getAccessToken = () => localStorage.getItem(TOKEN_KEY);
+
 export const putAccessToken = (token) => localStorage.setItem(TOKEN_KEY, token);
+
 export const removeAccessToken = () => localStorage.removeItem(TOKEN_KEY);
 
 /**
- * Wrapper fetch ke REST API Delcom.
- * @param {string} path endpoint, contoh "/auth/login"
- * @param {{method?: string, params?: object, body?: object, form?: FormData}} options
+ * Wrapper fetch untuk REST API Delcom.
+ * Selalu mengembalikan objek { status, message, data } (tidak melempar error).
  */
-export async function apiFetch(path, { method = "GET", params = {}, body, form } = {}) {
-  const url = new URL(`${DELCOM_BASEURL}${path}`, window.location.origin);
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== "" && value != null) url.searchParams.set(key, value);
-  }
+export async function apiRequest(
+  path,
+  { method = "GET", body, formData, params } = {}
+) {
+  const query = new URLSearchParams(params).toString();
+  const url = `${DELCOM_BASEURL}${path}${query ? `?${query}` : ""}`;
 
-  const headers = {};
+  const headers = { Accept: "application/json" };
   const token = getAccessToken();
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body) headers["Content-Type"] = "application/json";
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: form ?? (body ? JSON.stringify(body) : undefined),
-  });
-  const json = await response.json().catch(() => ({}));
-
-  if (!response.ok || json.success === false) {
-    throw new Error(json.message || "Terjadi kesalahan pada server");
+  const options = { method, headers };
+  if (formData) {
+    options.body = formData;
+  } else if (body) {
+    headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
   }
-  return json;
-}
 
-/** Mengambil data[key] jika ada, jika tidak memakai data itu sendiri. */
-export const unwrap = (json, key) => json.data?.[key] ?? json.data;
+  try {
+    const response = await fetch(url, options);
+    return await response.json();
+  } catch {
+    return {
+      status: "error",
+      message: "Tidak dapat terhubung ke server. Periksa koneksi internet kamu.",
+    };
+  }
+}

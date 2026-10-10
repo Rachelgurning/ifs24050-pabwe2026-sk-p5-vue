@@ -1,54 +1,76 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({ showErrorDialog: vi.fn(), showSuccessDialog: vi.fn() }));
-const api = vi.hoisted(() => ({ postCover: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", () => dialogs);
-vi.mock("../api/aucationApi", () => api);
-
-import { renderWithProviders } from "../../../test-utils";
 import ChangeCoverModal from "./ChangeCoverModal.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as api from "../api/aucationApi";
+import Swal from "sweetalert2";
 
-const file = new File(["x"], "cover.png", { type: "image/png" });
+vi.mock("../api/aucationApi");
+const mountIt = (aucation = { id: 3, cover: "img/c.png" }, extra = {}) =>
+  renderWithProviders(ChangeCoverModal, { props: { aucation }, ...extra });
 
-async function chooseFile(wrapper) {
-  const input = wrapper.find("#cover-input");
-  Object.defineProperty(input.element, "files", { value: [file], configurable: true });
+const pick = async (wrapper, file) => {
+  const input = wrapper.find("#cover-file");
+  Object.defineProperty(input.element, "files", { value: file ? [file] : [], configurable: true });
   await input.trigger("change");
-}
+};
+const image = () => new File(["x"], "c.png", { type: "image/png" });
 
 describe("ChangeCoverModal", () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it("menampilkan pratinjau dan mengunggah cover", async () => {
-    api.postCover.mockResolvedValue({ message: "Cover diubah" });
-    const { wrapper } = await renderWithProviders(ChangeCoverModal, { props: { aucationId: 3 } });
-    expect(wrapper.find('img[alt="Pratinjau cover baru"]').exists()).toBe(false);
-
-    wrapper.vm.open();
-    await chooseFile(wrapper);
-    expect(wrapper.find('img[alt="Pratinjau cover baru"]').attributes("src")).toBe("blob:preview");
-
-    await wrapper.find("form").trigger("submit");
-    await flushPromises();
-
-    expect(api.postCover.mock.calls[0][0]).toBe(3);
-    expect(api.postCover.mock.calls[0][1].get("cover")).toBe(file);
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Cover diubah");
-    expect(wrapper.emitted("changed")).toHaveLength(1);
-    wrapper.unmount();
+  it("menampilkan cover saat ini, atau tanpa pratinjau bila belum ada", async () => {
+    const withCover = await mountIt();
+    expect(withCover.wrapper.find('[data-testid="cover-preview"]').attributes("src")).toBe("https://open-api.delcom.org/img/c.png");
+    const without = await mountIt({ id: 3 });
+    expect(without.wrapper.find('[data-testid="cover-preview"]').exists()).toBe(false);
   });
 
-  it("menampilkan dialog error saat unggah gagal dan bisa dibatalkan", async () => {
-    api.postCover.mockRejectedValue(new Error("Terlalu besar"));
-    const { wrapper } = await renderWithProviders(ChangeCoverModal, { props: { aucationId: 3 } });
-    await chooseFile(wrapper);
+  it("menolak submit tanpa file atau dengan file non-gambar", async () => {
+    const { wrapper } = await mountIt();
+    await wrapper.find("form").trigger("submit");
+    expect(wrapper.text()).toContain("Pilih berkas gambar");
+    await pick(wrapper, new File(["x"], "a.pdf", { type: "application/pdf" }));
+    await wrapper.find("form").trigger("submit");
+    expect(wrapper.text()).toContain("Pilih berkas gambar");
+    await pick(wrapper, null);
+    expect(api.changeCover).not.toHaveBeenCalled();
+  });
+
+  it("pratinjau live saat memilih gambar lalu berhasil unggah", async () => {
+    api.changeCover.mockResolvedValue({ status: "success", message: "Cover diganti" });
+    const { wrapper } = await mountIt();
+    const file = image();
+    await pick(wrapper, file);
+    expect(wrapper.find('[data-testid="cover-preview"]').attributes("src")).toBe("blob:preview");
     await wrapper.find("form").trigger("submit");
     await flushPromises();
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Terlalu besar");
-
-    await wrapper.find('button[type="button"]').trigger("click");
-    expect(wrapper.find("dialog").element.hasAttribute("open")).toBe(false);
+    expect(api.changeCover).toHaveBeenCalledWith(3, file);
+    expect(wrapper.emitted("saved")).toHaveLength(1);
+    expect(wrapper.emitted("close")).toHaveLength(1);
     wrapper.unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:preview");
+  });
+
+  it("gagal unggah menampilkan dialog error", async () => {
+    api.changeCover.mockResolvedValue({ status: "fail", message: "Gagal cover" });
+    const { wrapper } = await mountIt();
+    await pick(wrapper, image());
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ text: "Gagal cover" }));
+  });
+
+  it("label loading, batal, dan tanpa revoke bila tidak ada file", async () => {
+    const { wrapper } = await mountIt(undefined, { state: { aucations: { isAucationChangeCover: true } } });
+    expect(wrapper.find('button[type="submit"]').text()).toBe("Mengunggah...");
+    await wrapper.findAll("button").find((b) => b.text() === "Batal").trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
+    wrapper.unmount();
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("tombol X pada header menutup dialog", async () => {
+    const { wrapper } = await mountIt();
+    await wrapper.find('button[aria-label="Tutup dialog"]').trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
   });
 });

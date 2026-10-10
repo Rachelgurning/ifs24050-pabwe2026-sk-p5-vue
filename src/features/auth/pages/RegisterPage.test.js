@@ -1,40 +1,55 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({ showErrorDialog: vi.fn(), showSuccessDialog: vi.fn() }));
-const api = vi.hoisted(() => ({ postLogin: vi.fn(), postRegister: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", () => dialogs);
-vi.mock("../api/authApi", () => api);
-
-import { renderWithProviders } from "../../../test-utils";
 import RegisterPage from "./RegisterPage.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as authApi from "../api/authApi";
+import Swal from "sweetalert2";
+
+vi.mock("../api/authApi");
+const routes = [
+  { path: "/auth/login", component: { template: "<div>login</div>" } },
+  { path: "/auth/register", component: RegisterPage },
+  { path: "/", component: { template: "<div>home</div>" } },
+];
+
+const fill = async (wrapper, { name = "Budi", email = "b@x.id", pass = "123456", confirm = "123456" } = {}) => {
+  await wrapper.find("#register-name-input").setValue(name);
+  await wrapper.find("#register-email-input").setValue(email);
+  await wrapper.find("#register-password-input").setValue(pass);
+  await wrapper.find("#register-confirmation-input").setValue(confirm);
+  await wrapper.find("form").trigger("submit");
+  await flushPromises();
+};
 
 describe("RegisterPage", () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it("mendaftar lalu mengarahkan ke login", async () => {
-    api.postRegister.mockResolvedValue({ message: "Terdaftar" });
-    const { wrapper, router } = await renderWithProviders(RegisterPage, { route: "/auth/register" });
-    expect(wrapper.find("h1").text()).toBe("Daftar Akun");
-
-    await wrapper.find("#register-name-input").setValue("Ifs");
-    await wrapper.find("#register-email-input").setValue("a@b.c");
-    await wrapper.find("#register-password-input").setValue("123456");
-    await wrapper.find("form").trigger("submit");
-    await flushPromises();
-
-    expect(api.postRegister).toHaveBeenCalledWith({ name: "Ifs", email: "a@b.c", password: "123456" });
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Terdaftar");
-    expect(router.currentRoute.value.path).toBe("/auth/login");
-    wrapper.unmount();
+  it("validasi semua field", async () => {
+    const { wrapper } = await renderWithProviders(RegisterPage, { routes, route: "/auth/register" });
+    await fill(wrapper, { name: "", email: "", pass: "123", confirm: "999" });
+    expect(wrapper.text()).toContain("Nama wajib diisi.");
+    expect(wrapper.text()).toContain("Email wajib diisi.");
+    expect(wrapper.text()).toContain("Kata sandi minimal 6 karakter.");
+    expect(wrapper.text()).toContain("Konfirmasi kata sandi tidak sama.");
+    expect(authApi.register).not.toHaveBeenCalled();
   });
 
-  it("menampilkan dialog error saat gagal", async () => {
-    api.postRegister.mockRejectedValue(new Error("Email dipakai"));
-    const { wrapper } = await renderWithProviders(RegisterPage, { route: "/auth/register" });
-    await wrapper.find("form").trigger("submit");
-    await flushPromises();
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Email dipakai");
-    wrapper.unmount();
+  it("menampilkan error dari API", async () => {
+    authApi.register.mockResolvedValue({ status: "fail", message: "Email dipakai" });
+    const { wrapper, router } = await renderWithProviders(RegisterPage, { routes, route: "/auth/register" });
+    await fill(wrapper);
+    expect(authApi.register).toHaveBeenCalledWith("Budi", "b@x.id", "123456");
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ text: "Email dipakai" }));
+    expect(router.currentRoute.value.path).toBe("/auth/register");
+  });
+
+  it("pindah ke login setelah sukses", async () => {
+    authApi.register.mockResolvedValue({ status: "success", message: "Terdaftar" });
+    const { wrapper, router } = await renderWithProviders(RegisterPage, { routes, route: "/auth/register" });
+    await fill(wrapper);
+    expect(router.currentRoute.value.path).toBe("/auth/login");
+  });
+
+  it("tombol nonaktif saat memproses", async () => {
+    const { wrapper } = await renderWithProviders(RegisterPage, { routes, state: { auth: { isAuthRegister: true } } });
+    expect(wrapper.find("#register-submit-button").text()).toBe("Memproses...");
   });
 });

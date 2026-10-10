@@ -1,31 +1,33 @@
-# ifs24010-pabwe2026-sk-p5-vue
+# Delcom Auction — ifs24018-pabwe2026-sk-p5-vue
 
-Delcom Auction - aplikasi lelang online (Vue 3, JavaScript, Pinia, Tailwind CSS v4, Vitest).
+Aplikasi lelang online (Praktikum PABWE 2026, Studi Kasus 1) berbasis **Vue 3 + JavaScript**, **Pinia**, **Vue Router**, **Tailwind CSS v4**, **SweetAlert2**, dan **@toast-ui/editor**. Data berasal dari https://open-api.delcom.org/docs/1.0/api-aucations.
 
 ## Menjalankan
-
 ```bash
-bun install
-cp .env.example .env   # sesuaikan jika perlu
-bun run dev            # http://localhost:3000
+bun install          # atau: npm install
+cp .env.example .env # isi VITE_DELCOM_BASEURL dan APP_PORT
+bun run dev          # http://localhost:3000
+bun run build        # build produksi (dist/)
+bun run test:coverage # Vitest + coverage v8 (threshold 100%)
 ```
 
-## Pengujian
+## Rute
+| Path | Halaman | Akses |
+|---|---|---|
+| `/auth/login` | Login | publik |
+| `/auth/register` | Registrasi | publik |
+| `/` | Dashboard lelang (filter, pencarian) | login |
+| `/aucations/:aucationId` | Detail lelang + riwayat bid | login |
+| `/users` | Daftar pengguna | login |
+| `/profile` | Profil & pengaturan akun | login |
+| `/:pathMatch(.*)*` | 404 | publik |
 
-```bash
-bun run test:coverage  # threshold 100% (statements, branches, functions, lines)
-```
+Login memakai selector `#login-email-input`, `#login-password-input`, `#login-submit-button`.
 
-Laporan: `coverage/lcov.info` (dibaca SonarQube) dan `test-results/junit.xml` (dibaca Jenkins).
+## Deploy (Vercel/Netlify)
+`vercel.json` dan `public/_redirects` sudah disertakan agar rute SPA tidak 404 saat refresh. Set env `VITE_DELCOM_BASEURL`.
 
-## CI/CD
-
-- `Jenkinsfile`: Checkout, Setup Bun, Install, Test + Coverage, SonarQube Analysis, Quality Gate, Build.
-  Nama konfigurasi Jenkins yang dipakai: tool `SonarScanner` dan server `SonarQube`
-  (ubah di `Jenkinsfile` jika berbeda di Jenkins kampus).
-- `sonar-project.properties`: project key `ifs24010-pabwe2026-sk-p5-vue`.
-
-## Deploy (Vercel)
-
-Nama project Vercel: `ifs24010-pabwe2026-sk-p5-vue` agar URL sesuai batas prefix penilaian.
-Build command `bun run build`, output `dist`. `vercel.json` sudah berisi SPA rewrite dan security headers.
+## Catatan implementasi
+- Endpoint ganti kata sandi memakai `PUT /users/password` sesuai dokumentasi API resmi.
+- Tab "Berlangsung"/"Ditutup" difilter di sisi klien berdasarkan `closed_at` agar akurat; "Lelang Saya" memakai `is_me=1`.
+- `ModalShell.vue` adalah komponen pembungkus dialog (fokus, Escape, aria) yang dipakai keempat modal.

@@ -1,60 +1,76 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({ showErrorDialog: vi.fn(), showSuccessDialog: vi.fn() }));
-const api = vi.hoisted(() => ({ postBid: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", async (original) => ({ ...(await original()), ...dialogs }));
-vi.mock("../api/aucationApi", () => api);
-
-import { renderWithProviders } from "../../../test-utils";
 import BidModal from "./BidModal.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as api from "../api/aucationApi";
+import Swal from "sweetalert2";
 
-const aucation = { id: 2, start_bid: 1000, highest_bid: 2000 };
-
-async function submitBid(wrapper, value) {
-  await wrapper.find("#bid-input").setValue(value);
+vi.mock("../api/aucationApi");
+const mountIt = (props = {}, extra = {}) =>
+  renderWithProviders(BidModal, { props: { aucationId: 4, startBid: 10000, highestBid: 0, ...props }, ...extra });
+const submit = async (wrapper, value) => {
+  await wrapper.find("#bid-amount").setValue(value);
   await wrapper.find("form").trigger("submit");
   await flushPromises();
-}
+};
 
 describe("BidModal", () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it("menolak penawaran yang tidak lebih tinggi dan menampilkan alert", async () => {
-    const { wrapper } = await renderWithProviders(BidModal, { props: { aucation } });
-    wrapper.vm.open();
-    await submitBid(wrapper, "2000");
-
-    expect(api.postBid).not.toHaveBeenCalled();
-    expect(wrapper.find('[role="alert"]').text()).toContain("lebih tinggi");
-    expect(wrapper.find("#bid-input").attributes("aria-describedby")).toBe("bid-error");
-    wrapper.unmount();
+  it("menampilkan petunjuk sesuai ada/tidaknya penawaran", async () => {
+    const empty = await mountIt();
+    expect(empty.wrapper.find('[data-testid="bid-hint"]').text()).toMatch(/Belum ada penawaran/);
+    const filled = await mountIt({ highestBid: 25000 });
+    expect(filled.wrapper.find('[data-testid="bid-hint"]').text()).toMatch(/lebih tinggi/);
   });
 
-  it("mengirim penawaran valid lalu menghapus pesan error", async () => {
-    api.postBid.mockResolvedValue({ message: "Tawaran dikirim" });
-    const { wrapper } = await renderWithProviders(BidModal, { props: { aucation } });
-    await submitBid(wrapper, "1500");
-    expect(wrapper.find('[role="alert"]').exists()).toBe(true);
+  it("menolak tawaran di bawah harga awal bila belum ada bid", async () => {
+    const { wrapper } = await mountIt();
+    await submit(wrapper, "9999");
+    expect(wrapper.find('[role="alert"]').text()).toMatch(/minimal/);
+    expect(api.addBid).not.toHaveBeenCalled();
+  });
 
-    await submitBid(wrapper, "2500");
+  it("menolak tawaran yang tidak lebih tinggi dari tertinggi saat ini", async () => {
+    const { wrapper } = await mountIt({ highestBid: 25000 });
+    await submit(wrapper, "25000");
+    expect(wrapper.find('[role="alert"]').text()).toMatch(/lebih tinggi dari/);
+    expect(api.addBid).not.toHaveBeenCalled();
+  });
 
-    expect(api.postBid).toHaveBeenCalledWith(2, { bid: 2500 });
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Tawaran dikirim");
-    expect(wrapper.emitted("bid")).toHaveLength(1);
+  it("mengirim tawaran valid dan emit saved/close", async () => {
+    api.addBid.mockResolvedValue({ status: "success", message: "Bid masuk" });
+    const { wrapper } = await mountIt({ highestBid: 25000 });
+    await submit(wrapper, "26000");
+    expect(api.addBid).toHaveBeenCalledWith(4, 26000);
     expect(wrapper.find('[role="alert"]').exists()).toBe(false);
-    expect(wrapper.find("#bid-input").element.value).toBe("");
-    wrapper.unmount();
+    expect(wrapper.emitted("saved")).toHaveLength(1);
+    expect(wrapper.emitted("close")).toHaveLength(1);
   });
 
-  it("menampilkan dialog error saat server menolak dan bisa dibatalkan", async () => {
-    api.postBid.mockRejectedValue(new Error("Lelang ditutup"));
-    const { wrapper } = await renderWithProviders(BidModal, { props: { aucation } });
-    await submitBid(wrapper, "3000");
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Lelang ditutup");
+  it("bid pertama sama dengan harga awal diterima", async () => {
+    api.addBid.mockResolvedValue({ status: "success", message: "ok" });
+    const { wrapper } = await mountIt();
+    await submit(wrapper, "10000");
+    expect(api.addBid).toHaveBeenCalledWith(4, 10000);
+  });
 
-    await wrapper.find('button[type="button"]').trigger("click");
-    expect(wrapper.find("dialog").element.hasAttribute("open")).toBe(false);
-    wrapper.unmount();
+  it("gagal menampilkan dialog error", async () => {
+    api.addBid.mockResolvedValue({ status: "fail", message: "Bid ditolak" });
+    const { wrapper } = await mountIt();
+    await submit(wrapper, "20000");
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ text: "Bid ditolak" }));
+    expect(wrapper.emitted("saved")).toBeUndefined();
+  });
+
+  it("label loading dan tombol batal", async () => {
+    const { wrapper } = await mountIt({}, { state: { aucations: { isBidAdd: true } } });
+    expect(wrapper.find('button[type="submit"]').text()).toBe("Mengirim...");
+    await wrapper.findAll("button").find((b) => b.text() === "Batal").trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
+  it("tombol X pada header menutup dialog", async () => {
+    const { wrapper } = await mountIt();
+    await wrapper.find('button[aria-label="Tutup dialog"]').trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
   });
 });

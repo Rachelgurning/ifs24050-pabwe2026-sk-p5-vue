@@ -2,15 +2,18 @@ import { describe, expect, it } from "vitest";
 import { useInput } from "./useInput";
 
 describe("useInput", () => {
-  it("memakai nilai awal bawaan", () => {
-    const [value] = useInput();
-    expect(value.value).toBe("");
+  it("memiliki nilai awal default string kosong", () => {
+    expect(useInput().value.value).toBe("");
   });
 
-  it("memperbarui nilai saat onChange dipanggil", () => {
-    const [value, onChange] = useInput("awal");
+  it("onChange memperbarui nilai dan reset mengembalikannya", () => {
+    const { value, onChange, reset } = useInput("awal");
     expect(value.value).toBe("awal");
     onChange({ target: { value: "baru" } });
     expect(value.value).toBe("baru");
+    reset();
+    expect(value.value).toBe("awal");
+    reset("lain");
+    expect(value.value).toBe("lain");
   });
 });

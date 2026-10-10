@@ -1,24 +1,22 @@
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { onMounted, ref } from "vue";
+import { RouterView } from "vue-router";
 import NavbarComponent from "../components/NavbarComponent.vue";
 import SidebarComponent from "../components/SidebarComponent.vue";
-import { useAuthStore } from "../../auth/states/authStore";
+import { useUsersStore } from "../../users/states/usersStore";
 
-const auth = useAuthStore();
-const router = useRouter();
-const menuOpen = ref(false);
+const usersStore = useUsersStore();
+const isSidebarOpen = ref(false);
 
-function logout() {
-  auth.logout();
-  router.replace("/auth/login");
-}
+onMounted(() => usersStore.fetchProfile());
 </script>
 
 <template>
-  <NavbarComponent :menu-open="menuOpen" @toggle-menu="menuOpen = !menuOpen" @logout="logout" />
-  <div class="md:flex">
-    <SidebarComponent :open="menuOpen" />
-    <main class="mx-auto w-full max-w-5xl p-4"><RouterView /></main>
+  <div class="min-h-screen bg-slate-100">
+    <NavbarComponent @toggle-sidebar="isSidebarOpen = !isSidebarOpen" />
+    <SidebarComponent :open="isSidebarOpen" @close="isSidebarOpen = false" />
+    <main id="main" class="px-4 py-8 sm:px-8 lg:ml-64">
+      <RouterView />
+    </main>
   </div>
 </template>

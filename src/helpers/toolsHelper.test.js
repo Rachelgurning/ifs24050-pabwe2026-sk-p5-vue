@@ -1,56 +1,84 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const fire = vi.hoisted(() => vi.fn());
-vi.mock("sweetalert2", () => ({ default: { fire } }));
-
+import { describe, expect, it } from "vitest";
+import Swal from "sweetalert2";
 import {
+  assetUrl,
   formatDate,
   formatRupiah,
   getHighestBid,
+  getTimeLeft,
   isAucationClosed,
   showConfirmDialog,
   showErrorDialog,
   showSuccessDialog,
+  toApiDateTime,
+  toInputDateTime,
 } from "./toolsHelper";
 
-describe("toolsHelper", () => {
-  beforeEach(() => fire.mockReset());
-
-  it("menampilkan dialog sukses dan error", async () => {
-    fire.mockResolvedValue({});
-    await showSuccessDialog("ok");
-    await showErrorDialog("gagal");
-    expect(fire).toHaveBeenNthCalledWith(1, expect.objectContaining({ icon: "success", text: "ok" }));
-    expect(fire).toHaveBeenNthCalledWith(2, expect.objectContaining({ icon: "error", text: "gagal" }));
+describe("dialog SweetAlert2", () => {
+  it("showSuccessDialog menampilkan dialog sukses", async () => {
+    await showSuccessDialog("Oke");
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ icon: "success", text: "Oke" }));
   });
 
-  it("mengembalikan hasil konfirmasi", async () => {
-    fire.mockResolvedValueOnce({ isConfirmed: true }).mockResolvedValueOnce({ isConfirmed: false });
-    expect(await showConfirmDialog("hapus?")).toBe(true);
-    expect(await showConfirmDialog("hapus?")).toBe(false);
+  it("showErrorDialog menampilkan dialog error", async () => {
+    await showErrorDialog("Gagal");
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ icon: "error", text: "Gagal" }));
   });
 
-  it("memformat rupiah", () => {
-    expect(formatRupiah(15000).replace(/\s/g, " ")).toContain("15.000");
-    expect(formatRupiah("abc")).toContain("0");
+  it("showConfirmDialog mengembalikan pilihan pengguna", async () => {
+    expect(await showConfirmDialog("Yakin?")).toBe(true);
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    expect(await showConfirmDialog("Yakin?", "Hapus")).toBe(false);
+    expect(Swal.fire).toHaveBeenLastCalledWith(expect.objectContaining({ confirmButtonText: "Hapus" }));
+  });
+});
+
+describe("format", () => {
+  it("formatRupiah", () => {
+    expect(formatRupiah(1500000)).toMatch(/Rp\s?1\.500\.000/);
+    expect(formatRupiah(undefined)).toMatch(/Rp\s?0/);
   });
 
-  it("memformat tanggal", () => {
-    expect(formatDate("")).toBe("-");
-    expect(formatDate("2026-01-02T03:04:00Z")).toContain("2026");
+  it("formatDate", () => {
+    expect(formatDate("2026-12-31 23:59:00")).toMatch(/2026/);
   });
 
-  it("menghitung tawaran tertinggi", () => {
-    expect(getHighestBid({ highest_bid: 500, start_bid: 100 })).toBe(500);
-    expect(getHighestBid({ start_bid: 100 })).toBe(100);
-    expect(getHighestBid({})).toBe(0);
+  it("konversi datetime API <-> input", () => {
+    expect(toApiDateTime("2026-12-31T23:59")).toBe("2026-12-31 23:59:00");
+    expect(toInputDateTime("2026-12-31 23:59:00")).toBe("2026-12-31T23:59");
+  });
+});
+
+describe("assetUrl", () => {
+  it("menangani kosong, absolut, dan relatif", () => {
+    expect(assetUrl("")).toBe("");
+    expect(assetUrl("https://x.id/a.png")).toBe("https://x.id/a.png");
+    expect(assetUrl("img/a.png")).toBe("https://open-api.delcom.org/img/a.png");
+    expect(assetUrl("/img/a.png")).toBe("https://open-api.delcom.org/img/a.png");
+  });
+});
+
+describe("waktu lelang", () => {
+  const now = new Date("2026-10-07T10:00:00").getTime();
+
+  it("isAucationClosed", () => {
+    expect(isAucationClosed("2026-10-07 09:00:00", now)).toBe(true);
+    expect(isAucationClosed("2099-01-01 00:00:00")).toBe(false);
   });
 
-  it("menentukan lelang ditutup", () => {
-    const future = new Date(Date.now() + 86_400_000).toISOString();
-    const past = new Date(Date.now() - 86_400_000).toISOString();
-    expect(isAucationClosed({ is_closed: 1, closed_at: future })).toBe(true);
-    expect(isAucationClosed({ closed_at: past })).toBe(true);
-    expect(isAucationClosed({ closed_at: future })).toBe(false);
+  it("getTimeLeft untuk hari, jam, menit, dan ditutup", () => {
+    expect(getTimeLeft("2026-10-09 13:00:00", now)).toBe("2 hari 3 jam lagi");
+    expect(getTimeLeft("2026-10-07 12:30:00", now)).toBe("2 jam 30 menit lagi");
+    expect(getTimeLeft("2026-10-07 10:20:00", now)).toBe("20 menit lagi");
+    expect(getTimeLeft("2026-10-07 09:00:00", now)).toBe("Ditutup");
+    expect(getTimeLeft("2099-01-01 00:00:00")).toMatch(/hari/);
+  });
+});
+
+describe("getHighestBid", () => {
+  it("mengambil nominal tertinggi dan aman untuk data id/kosong", () => {
+    expect(getHighestBid()).toBe(0);
+    expect(getHighestBid([2, 3])).toBe(0);
+    expect(getHighestBid([{ bid: 5 }, { bid: 9 }, { bid: 7 }])).toBe(9);
   });
 });

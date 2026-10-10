@@ -1,55 +1,70 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({ showErrorDialog: vi.fn(), showSuccessDialog: vi.fn() }));
-const api = vi.hoisted(() => ({ postAucation: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", () => dialogs);
-vi.mock("../api/aucationApi", () => api);
-
-import { renderWithProviders } from "../../../test-utils";
 import AddModal from "./AddModal.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as api from "../api/aucationApi";
+import Swal from "sweetalert2";
 
-async function fillAndSubmit(wrapper) {
-  await wrapper.find("#add-title").setValue("Jam");
-  await wrapper.find("#add-desc").setValue("Antik");
-  await wrapper.find("#add-bid").setValue("1000");
-  await wrapper.find("#add-closed").setValue("2030-01-02T10:30");
+vi.mock("../api/aucationApi");
+const stubs = {
+  MarkdownEditor: {
+    props: ["modelValue"],
+    emits: ["update:modelValue"],
+    template: '<textarea data-testid="md" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  },
+};
+
+const fill = async (wrapper, { title = "Jam Tangan", desc = "Antik", bid = "50000", closed = "2026-12-31T23:59" } = {}) => {
+  await wrapper.find("#add-title").setValue(title);
+  await wrapper.find('[data-testid="md"]').setValue(desc);
+  await wrapper.find("#add-start-bid").setValue(bid);
+  await wrapper.find("#add-closed-at").setValue(closed);
   await wrapper.find("form").trigger("submit");
   await flushPromises();
-}
+};
 
 describe("AddModal", () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it("menambah lelang, menutup dialog, dan memberi tahu induk", async () => {
-    api.postAucation.mockResolvedValue({ message: "Lelang dibuat" });
-    const { wrapper } = await renderWithProviders(AddModal);
-
-    wrapper.vm.open();
-    expect(wrapper.find("dialog").element.hasAttribute("open")).toBe(true);
-    await fillAndSubmit(wrapper);
-
-    expect(api.postAucation).toHaveBeenCalledWith(expect.objectContaining({ title: "Jam", start_bid: 1000 }));
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Lelang dibuat");
-    expect(wrapper.emitted("added")).toHaveLength(1);
-    expect(wrapper.find("dialog").element.hasAttribute("open")).toBe(false);
-    wrapper.unmount();
+  it("menampilkan error validasi", async () => {
+    const { wrapper } = await renderWithProviders(AddModal, { global: { stubs } });
+    await fill(wrapper, { title: "", desc: "", bid: "0", closed: "" });
+    ["Judul wajib diisi.", "Deskripsi wajib diisi.", "Harga awal harus lebih dari 0.", "Batas waktu wajib diisi."].forEach((m) =>
+      expect(wrapper.text()).toContain(m)
+    );
+    expect(api.addAucation).not.toHaveBeenCalled();
   });
 
-  it("menampilkan dialog error saat gagal", async () => {
-    api.postAucation.mockRejectedValue(new Error("Gagal membuat"));
-    const { wrapper } = await renderWithProviders(AddModal);
-    await fillAndSubmit(wrapper);
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Gagal membuat");
-    expect(wrapper.emitted("added")).toBeUndefined();
-    wrapper.unmount();
+  it("menampilkan dialog error bila API gagal", async () => {
+    api.addAucation.mockResolvedValue({ status: "fail", message: "Gagal tambah" });
+    const { wrapper } = await renderWithProviders(AddModal, { global: { stubs } });
+    await fill(wrapper);
+    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ text: "Gagal tambah" }));
+    expect(wrapper.emitted("saved")).toBeUndefined();
   });
 
-  it("menutup dialog saat tombol batal ditekan", async () => {
-    const { wrapper } = await renderWithProviders(AddModal);
-    wrapper.vm.open();
-    await wrapper.find('button[type="button"]').trigger("click");
-    expect(wrapper.find("dialog").element.hasAttribute("open")).toBe(false);
-    wrapper.unmount();
+  it("mengirim data yang benar dan emit saved + close", async () => {
+    api.addAucation.mockResolvedValue({ status: "success", message: "Ditambahkan" });
+    const { wrapper } = await renderWithProviders(AddModal, { global: { stubs } });
+    await fill(wrapper);
+    expect(api.addAucation).toHaveBeenCalledWith({
+      title: "Jam Tangan",
+      description: "Antik",
+      startBid: 50000,
+      closedAt: "2026-12-31 23:59:00",
+    });
+    expect(wrapper.emitted("saved")).toHaveLength(1);
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
+  it("tombol batal dan label loading", async () => {
+    const { wrapper } = await renderWithProviders(AddModal, { global: { stubs }, state: { aucations: { isAucationAdd: true } } });
+    expect(wrapper.find('button[type="submit"]').text()).toBe("Menyimpan...");
+    await wrapper.findAll("button").find((b) => b.text() === "Batal").trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
+  });
+
+  it("tombol X pada header menutup dialog", async () => {
+    const { wrapper } = await renderWithProviders(AddModal, { global: { stubs } });
+    await wrapper.find('button[aria-label="Tutup dialog"]').trigger("click");
+    expect(wrapper.emitted("close")).toHaveLength(1);
   });
 });

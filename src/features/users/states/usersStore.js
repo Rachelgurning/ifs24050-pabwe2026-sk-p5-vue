@@ -1,42 +1,91 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { getMe, getUsers, postPhoto, putMe, putPassword } from "../api/userApi";
-import { unwrap } from "../../../helpers/apiHelper";
+import * as userApi from "../api/userApi";
 
 export const useUsersStore = defineStore("users", () => {
   const users = ref([]);
   const user = ref(null);
   const profile = ref(null);
+  const isUsers = ref(false);
+  const isProfile = ref(false);
   const isProfileChange = ref(false);
+  const isProfileChanged = ref(false);
   const isPhotoChange = ref(false);
   const isPasswordChange = ref(false);
+  const message = ref("");
+  const errors = ref({});
+
+  const finish = (response) => {
+    message.value = response.message;
+    errors.value = response.data?.field || {};
+    return response.status === "success";
+  };
 
   async function fetchUsers() {
-    users.value = unwrap(await getUsers(), "users") ?? [];
+    isUsers.value = true;
+    const response = await userApi.getUsers();
+    if (finish(response)) users.value = response.data.users;
+    isUsers.value = false;
   }
 
   async function fetchProfile() {
-    profile.value = user.value = unwrap(await getMe(), "user");
-  }
-
-  async function mutate(flag, call) {
-    flag.value = true;
-    try {
-      const json = await call();
-      await fetchProfile();
-      return json.message;
-    } finally {
-      flag.value = false;
+    isProfile.value = true;
+    const response = await userApi.getMe();
+    if (finish(response)) {
+      profile.value = response.data.user;
+      user.value = response.data.user;
     }
+    isProfile.value = false;
   }
 
-  const changeProfile = (body) => mutate(isProfileChange, () => putMe(body));
-  const changePhoto = (form) => mutate(isPhotoChange, () => postPhoto(form));
-  const changePassword = (body) => mutate(isPasswordChange, () => putPassword(body));
+  async function changeProfile(name, email) {
+    isProfileChange.value = true;
+    isProfileChanged.value = false;
+    const response = await userApi.updateMe(name, email);
+    const success = finish(response);
+    if (success) {
+      profile.value = response.data.user;
+      isProfileChanged.value = true;
+    }
+    isProfileChange.value = false;
+    return success;
+  }
+
+  async function changePhoto(file) {
+    isPhotoChange.value = true;
+    const success = finish(await userApi.updatePhoto(file));
+    if (success) await fetchProfile();
+    isPhotoChange.value = false;
+    return success;
+  }
+
+  async function changePassword(password, newPassword, confirmation) {
+    isPasswordChange.value = true;
+    const response = await userApi.changePassword(
+      password,
+      newPassword,
+      confirmation
+    );
+    isPasswordChange.value = false;
+    return finish(response);
+  }
 
   return {
-    users, user, profile,
-    isProfileChange, isPhotoChange, isPasswordChange,
-    fetchUsers, fetchProfile, changeProfile, changePhoto, changePassword,
+    users,
+    user,
+    profile,
+    isUsers,
+    isProfile,
+    isProfileChange,
+    isProfileChanged,
+    isPhotoChange,
+    isPasswordChange,
+    message,
+    errors,
+    fetchUsers,
+    fetchProfile,
+    changeProfile,
+    changePhoto,
+    changePassword,
   };
 });

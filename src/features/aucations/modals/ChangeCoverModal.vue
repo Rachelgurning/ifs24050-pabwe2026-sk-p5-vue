@@ -1,63 +1,60 @@
 <script setup>
-import { ref } from "vue";
-import ModalDialog from "./ModalDialog.vue";
+import { onBeforeUnmount, ref } from "vue";
+import ModalShell from "../components/ModalShell.vue";
 import { useAucationsStore } from "../states/aucationsStore";
-import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+import { assetUrl, showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
 
-const props = defineProps({ aucationId: { type: [String, Number], required: true } });
-const emit = defineEmits(["changed"]);
+const props = defineProps({
+  aucation: { type: Object, required: true },
+});
+const emit = defineEmits(["close", "saved"]);
 const store = useAucationsStore();
-const dialog = ref(null);
-const input = ref(null);
-const preview = ref("");
-defineExpose({ open: () => dialog.value.open() });
+const file = ref(null);
+const preview = ref(assetUrl(props.aucation.cover));
+const error = ref("");
 
-function onFile(event) {
-  preview.value = URL.createObjectURL(event.target.files[0]);
-}
+const onFileChange = (event) => {
+  const [selected] = event.target.files;
+  file.value = selected || null;
+  error.value = "";
+  if (selected) preview.value = URL.createObjectURL(selected);
+};
 
-async function submit() {
-  const form = new FormData();
-  form.append("cover", input.value.files[0]);
-  try {
-    const message = await store.changeCover(props.aucationId, form);
-    dialog.value.close();
-    await showSuccessDialog(message);
-    emit("changed");
-  } catch (error) {
-    showErrorDialog(error.message);
+const onSubmit = async () => {
+  if (!file.value || !file.value.type.startsWith("image/")) {
+    error.value = "Pilih berkas gambar (JPG, PNG, atau WEBP).";
+    return;
   }
-}
+  const success = await store.changeCover(props.aucation.id, file.value);
+  if (!success) {
+    await showErrorDialog(store.message);
+    return;
+  }
+  await showSuccessDialog(store.message);
+  emit("saved");
+  emit("close");
+};
+
+onBeforeUnmount(() => {
+  if (file.value) URL.revokeObjectURL(preview.value);
+});
 </script>
 
 <template>
-  <ModalDialog ref="dialog" title="Ganti Cover" title-id="cover-modal-title">
-    <form class="space-y-3" @submit.prevent="submit">
+  <ModalShell title="Ganti Cover Lelang" title-id="cover-modal-title" @close="emit('close')">
+    <form class="space-y-4" novalidate @submit.prevent="onSubmit">
+      <img v-if="preview" :src="preview" alt="Pratinjau cover lelang" class="h-56 w-full rounded-lg bg-slate-100 object-cover" data-testid="cover-preview" />
       <div>
-        <label for="cover-input" class="mb-1 block text-sm font-semibold text-slate-700">Pilih gambar cover</label>
-        <input
-          id="cover-input"
-          ref="input"
-          type="file"
-          accept="image/*"
-          required
-          class="w-full rounded-lg border border-slate-400 px-3 py-2"
-          @change="onFile"
-        />
+        <label for="cover-file" class="block text-sm font-semibold text-slate-800">Berkas gambar</label>
+        <input id="cover-file" type="file" accept="image/*" class="mt-1 block w-full text-sm text-slate-800" :aria-invalid="Boolean(error)" @change="onFileChange" />
+        <p v-if="error" class="mt-1 text-sm text-red-700">{{ error }}</p>
       </div>
-      <img v-if="preview" :src="preview" alt="Pratinjau cover baru" width="320" height="180" class="h-40 w-full rounded-lg object-cover" />
-      <div class="flex justify-end gap-2">
-        <button type="button" class="rounded-lg bg-slate-200 px-4 py-2 font-semibold text-slate-900" @click="dialog.close()">
-          Batal
-        </button>
-        <button
-          type="submit"
-          :disabled="store.isAucationChangeCover"
-          class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-70"
-        >
-          Unggah
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" class="rounded-lg px-4 py-2.5 font-semibold text-slate-800 hover:bg-slate-100" @click="emit('close')">Batal</button>
+        <button type="submit" :disabled="store.isAucationChangeCover" class="rounded-lg bg-indigo-950 px-5 py-2.5 font-semibold text-white hover:bg-indigo-900 disabled:opacity-70">
+          {{ store.isAucationChangeCover ? "Mengunggah..." : "Unggah cover" }}
         </button>
       </div>
     </form>
-  </ModalDialog>
+  </ModalShell>
 </template>

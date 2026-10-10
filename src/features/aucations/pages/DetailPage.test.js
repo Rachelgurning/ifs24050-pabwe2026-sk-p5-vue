@@ -1,169 +1,175 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({
-  showErrorDialog: vi.fn(),
-  showSuccessDialog: vi.fn(),
-  showConfirmDialog: vi.fn(),
-}));
-const api = vi.hoisted(() => ({
-  getAucation: vi.fn(),
-  deleteAucation: vi.fn(),
-  deleteBid: vi.fn(),
-  postBid: vi.fn(),
-  putAucation: vi.fn(),
-  postCover: vi.fn(),
-}));
-const userApi = vi.hoisted(() => ({ getMe: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", async (original) => ({ ...(await original()), ...dialogs }));
-vi.mock("../api/aucationApi", () => api);
-vi.mock("../../users/api/userApi", () => userApi);
-
-import { renderWithProviders } from "../../../test-utils";
 import DetailPage from "./DetailPage.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as api from "../api/aucationApi";
+import Swal from "sweetalert2";
 
-const future = new Date(Date.now() + 86_400_000).toISOString();
+vi.mock("../api/aucationApi");
+
 const base = {
-  id: 9,
-  title: "Jam Antik",
-  description: "# Spesifikasi\n- Kuno",
-  start_bid: 1000,
-  closed_at: future,
+  id: 1,
   user_id: 1,
-  cover: "/c.png",
-  bids: [{ id: 1, bid: 1500, user: { name: "Budi" } }],
+  title: "Jam Antik",
+  description: "**emas**",
+  cover: "img/a.png",
+  start_bid: 10000,
+  closed_at: "2099-01-01 00:00:00",
+  author: { name: "Budi" },
+  my_bid: null,
+  bids: [
+    { id: 1, bid: 15000, created_at: "2026-10-01 10:00:00" },
+    { id: 2, bid: 20000, created_at: "2026-10-02 10:00:00" },
+  ],
 };
-
-const render = (aucation = base, profileId = 1) => {
-  api.getAucation.mockResolvedValue({ data: { aucation } });
-  userApi.getMe.mockResolvedValue({ data: { user: { id: profileId } } });
-  return renderWithProviders(DetailPage, {
-    route: "/aucations/9",
-    routes: [{ path: "/aucations/:aucationId", component: DetailPage }],
+const ok = (overrides = {}) => ({ status: "success", message: "ok", data: { aucation: { ...base, ...overrides } } });
+const routes = [
+  { path: "/", component: { template: "<div />" } },
+  { path: "/aucations/:aucationId", component: DetailPage },
+];
+const modalStub = (id) => ({
+  props: ["aucation", "aucationId", "startBid", "highestBid"],
+  emits: ["close", "saved"],
+  template: `<div data-testid="${id}">{{ aucationId }}|{{ startBid }}|{{ highestBid }}<button data-testid="${id}-close" @click="$emit('close')">c</button><button data-testid="${id}-saved" @click="$emit('saved')">s</button></div>`,
+});
+const stubs = {
+  MarkdownViewer: { props: ["content"], template: '<div data-testid="viewer">{{ content }}</div>' },
+  ChangeModal: modalStub("change-modal"),
+  ChangeCoverModal: modalStub("cover-modal"),
+  BidModal: modalStub("bid-modal"),
+};
+const render = (profileId = 1) =>
+  renderWithProviders(DetailPage, {
+    routes,
+    route: "/aucations/1",
+    state: { users: { profile: { id: profileId } } },
+    global: { stubs },
   });
-};
+const button = (wrapper, label) => wrapper.findAll("button").find((b) => b.text() === label);
 
 describe("DetailPage", () => {
-  beforeEach(() => vi.resetAllMocks());
+  it("menampilkan status memuat dan lelang tidak ditemukan", async () => {
+    api.getAucation.mockReturnValue(new Promise(() => {}));
+    const loading = await render();
+    expect(loading.wrapper.find('[role="status"]').exists()).toBe(true);
+    api.getAucation.mockResolvedValue({ status: "fail", message: "x" });
+    const missing = await render();
+    await flushPromises();
+    expect(missing.wrapper.text()).toContain("Lelang tidak ditemukan.");
+  });
 
-  it("menampilkan detail lelang, markdown, dan riwayat tawaran", async () => {
+  it("pemilik: detail, riwayat bid terurut, dan aksi kelola", async () => {
+    api.getAucation.mockResolvedValue(ok());
     const { wrapper } = await render();
-    expect(api.getAucation).toHaveBeenCalledWith("9");
+    await flushPromises();
+    expect(api.getAucation).toHaveBeenCalledWith("1");
     expect(wrapper.find("h1").text()).toBe("Jam Antik");
-    expect(wrapper.findAll("h2")[0].text()).toBe("Spesifikasi");
-    expect(wrapper.text()).toContain("Budi");
-    expect(wrapper.text()).toContain("Berlangsung");
-    expect(wrapper.find("img").attributes("alt")).toBe("Cover Jam Antik");
-    wrapper.unmount();
+    expect(wrapper.find('[data-testid="viewer"]').text()).toBe("**emas**");
+    expect(wrapper.find('img[alt="Cover Jam Antik"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="highest-bid"]').text()).toMatch(/Rp\s?20\.000/);
+    const entries = wrapper.findAll('[data-testid="bid-history"] li');
+    expect(entries[0].text()).toMatch(/20\.000/);
+    expect(entries[1].text()).toMatch(/15\.000/);
+    expect(button(wrapper, "Ubah data")).toBeTruthy();
+    expect(button(wrapper, "Ajukan penawaran")).toBeUndefined();
   });
 
-  it("menampilkan lelang tanpa cover, tanpa tawaran, dan sudah ditutup", async () => {
-    const { wrapper } = await render({ ...base, cover: undefined, bids: undefined, is_closed: true });
-    expect(wrapper.find("article img").exists()).toBe(false);
-    expect(wrapper.text()).toContain("Belum ada penawaran");
-    expect(wrapper.text()).toContain("Ditutup");
-    wrapper.unmount();
-  });
-
-  it("pemilik dapat mengubah lelang dan mengganti cover lewat modal", async () => {
+  it("pemilik membuka dan menutup modal ubah & cover", async () => {
+    api.getAucation.mockResolvedValue(ok());
     const { wrapper } = await render();
-    expect(wrapper.find("article > div").text()).not.toContain("Ajukan tawaran");
-    const buttons = wrapper.findAll("article > div button");
-    await buttons[0].trigger("click");
-    expect(wrapper.find("#change-title").exists()).toBe(true);
-    await buttons[1].trigger("click");
-    expect(wrapper.find("#cover-input").exists()).toBe(true);
-    wrapper.unmount();
+    await flushPromises();
+    await button(wrapper, "Ubah data").trigger("click");
+    expect(wrapper.find('[data-testid="change-modal"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="change-modal-saved"]').trigger("click");
+    await flushPromises();
+    expect(api.getAucation).toHaveBeenCalledTimes(2);
+    await wrapper.find('[data-testid="change-modal-close"]').trigger("click");
+    expect(wrapper.find('[data-testid="change-modal"]').exists()).toBe(false);
+
+    await button(wrapper, "Ganti cover").trigger("click");
+    expect(wrapper.find('[data-testid="cover-modal"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="cover-modal-close"]').trigger("click");
+    expect(wrapper.find('[data-testid="cover-modal"]').exists()).toBe(false);
   });
 
-  it("pemilik dapat menghapus lelang setelah konfirmasi", async () => {
-    dialogs.showConfirmDialog.mockResolvedValue(true);
-    api.deleteAucation.mockResolvedValue({ message: "Terhapus" });
+  it("pemilik menghapus lelang: batal, gagal, lalu sukses kembali ke dashboard", async () => {
+    api.getAucation.mockResolvedValue(ok());
     const { wrapper, router } = await render();
-    await wrapper.findAll("article > div button")[2].trigger("click");
     await flushPromises();
 
-    expect(api.deleteAucation).toHaveBeenCalledWith("9");
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Terhapus");
-    expect(router.currentRoute.value.path).toBe("/");
-    wrapper.unmount();
-  });
-
-  it("tidak menghapus jika konfirmasi dibatalkan", async () => {
-    dialogs.showConfirmDialog.mockResolvedValue(false);
-    const { wrapper } = await render();
-    await wrapper.findAll("article > div button")[2].trigger("click");
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    await button(wrapper, "Hapus").trigger("click");
     await flushPromises();
     expect(api.deleteAucation).not.toHaveBeenCalled();
-    wrapper.unmount();
+
+    api.deleteAucation.mockResolvedValue({ status: "fail", message: "Gagal hapus" });
+    await button(wrapper, "Hapus").trigger("click");
+    await flushPromises();
+    expect(Swal.fire).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Gagal hapus" }));
+    expect(router.currentRoute.value.path).toBe("/aucations/1");
+
+    api.deleteAucation.mockResolvedValue({ status: "success", message: "Terhapus" });
+    await button(wrapper, "Hapus").trigger("click");
+    await flushPromises();
+    expect(api.deleteAucation).toHaveBeenCalledWith(1);
+    expect(router.currentRoute.value.path).toBe("/");
   });
 
-  it("menampilkan dialog error saat penghapusan gagal", async () => {
-    dialogs.showConfirmDialog.mockResolvedValue(true);
-    api.deleteAucation.mockRejectedValue(new Error("Tidak boleh"));
-    const { wrapper } = await render();
-    await wrapper.findAll("article > div button")[2].trigger("click");
+  it("peserta: ajukan penawaran dengan data bid terkini", async () => {
+    api.getAucation.mockResolvedValue(ok());
+    const { wrapper } = await render(2);
     await flushPromises();
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Tidak boleh");
-    wrapper.unmount();
-  });
-
-  it("peserta dapat mengajukan tawaran lewat modal", async () => {
-    const { wrapper } = await render(base, 2);
-    expect(wrapper.find("article > div").text()).not.toContain("Hapus lelang");
-    await wrapper.findAll("article > div button")[0].trigger("click");
-    expect(wrapper.find("#bid-input").exists()).toBe(true);
-
-    api.postBid.mockResolvedValue({ message: "Tawaran dikirim" });
-    await wrapper.find("#bid-input").setValue("2000");
-    await wrapper.findAll("form").at(-1).trigger("submit");
+    expect(button(wrapper, "Ubah data")).toBeUndefined();
+    await button(wrapper, "Ajukan penawaran").trigger("click");
+    expect(wrapper.find('[data-testid="bid-modal"]').text()).toContain("1|10000|20000");
+    await wrapper.find('[data-testid="bid-modal-saved"]').trigger("click");
     await flushPromises();
-    expect(api.postBid).toHaveBeenCalledWith(9, { bid: 2000 });
     expect(api.getAucation).toHaveBeenCalledTimes(2);
-    wrapper.unmount();
+    await wrapper.find('[data-testid="bid-modal-close"]').trigger("click");
+    expect(wrapper.find('[data-testid="bid-modal"]').exists()).toBe(false);
   });
 
-  it("peserta dapat membatalkan tawaran", async () => {
-    api.deleteBid.mockResolvedValue({ message: "Tawaran dibatalkan" });
-    const { wrapper } = await render(base, 2);
-    await wrapper.findAll("article > div button")[1].trigger("click");
+  it("tanpa cover dan tanpa bid menampilkan placeholder", async () => {
+    api.getAucation.mockResolvedValue(ok({ cover: null, bids: [] }));
+    const { wrapper } = await render(2);
     await flushPromises();
+    expect(wrapper.text()).toContain("Tidak ada cover");
+    expect(wrapper.text()).toContain("Belum ada yang menawar.");
+    expect(wrapper.find('[data-testid="highest-bid"]').text()).toBe("Belum ada");
+    expect(wrapper.find('[data-testid="my-bid"]').exists()).toBe(false);
+    expect(button(wrapper, "Batalkan tawaranku")).toBeUndefined();
+  });
 
-    expect(api.deleteBid).toHaveBeenCalledWith("9");
-    expect(dialogs.showSuccessDialog).toHaveBeenCalledWith("Tawaran dibatalkan");
+  it("peserta dengan bid: tampil tawaranku dan batalkan (batal, gagal, sukses)", async () => {
+    api.getAucation.mockResolvedValue(ok({ my_bid: { id: 2, bid: 20000 } }));
+    const { wrapper } = await render(2);
+    await flushPromises();
+    expect(wrapper.find('[data-testid="my-bid"]').text()).toMatch(/Rp\s?20\.000/);
+
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    await button(wrapper, "Batalkan tawaranku").trigger("click");
+    await flushPromises();
+    expect(api.deleteBid).not.toHaveBeenCalled();
+
+    api.deleteBid.mockResolvedValue({ status: "fail", message: "Gagal batal" });
+    await button(wrapper, "Batalkan tawaranku").trigger("click");
+    await flushPromises();
+    expect(api.getAucation).toHaveBeenCalledTimes(1);
+
+    api.deleteBid.mockResolvedValue({ status: "success", message: "Dibatalkan" });
+    await button(wrapper, "Batalkan tawaranku").trigger("click");
+    await flushPromises();
+    expect(api.deleteBid).toHaveBeenCalledWith(1);
     expect(api.getAucation).toHaveBeenCalledTimes(2);
-    wrapper.unmount();
   });
 
-  it("menampilkan dialog error saat pembatalan tawaran gagal", async () => {
-    api.deleteBid.mockRejectedValue(new Error("Belum menawar"));
-    const { wrapper } = await render(base, 2);
-    await wrapper.findAll("article > div button")[1].trigger("click");
+  it("lelang yang sudah ditutup tidak bisa ditawar", async () => {
+    api.getAucation.mockResolvedValue(ok({ closed_at: "2000-01-01 00:00:00", my_bid: { id: 1, bid: 15000 } }));
+    const { wrapper } = await render(2);
     await flushPromises();
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Belum menawar");
-    wrapper.unmount();
-  });
-
-  it("menampilkan status memuat", async () => {
-    api.getAucation.mockReturnValue(new Promise(() => {}));
-    userApi.getMe.mockResolvedValue({ data: { user: { id: 1 } } });
-    const { wrapper } = await renderWithProviders(DetailPage, {
-      route: "/aucations/9",
-      routes: [{ path: "/aucations/:aucationId", component: DetailPage }],
-    });
-    expect(wrapper.find('[role="status"]').exists()).toBe(true);
-    wrapper.unmount();
-  });
-
-  it("menampilkan pesan saat lelang tidak ditemukan", async () => {
-    api.getAucation.mockRejectedValue(new Error("Lelang tidak ada"));
-    userApi.getMe.mockResolvedValue({ data: { user: { id: 1 } } });
-    const { wrapper } = await renderWithProviders(DetailPage, {
-      route: "/aucations/9",
-      routes: [{ path: "/aucations/:aucationId", component: DetailPage }],
-    });
-    expect(wrapper.find("h1").text()).toBe("Lelang tidak ditemukan");
-    expect(wrapper.find('[role="alert"]').text()).toBe("Lelang tidak ada");
-    wrapper.unmount();
+    expect(wrapper.text()).toContain("Ditutup");
+    expect(button(wrapper, "Ajukan penawaran")).toBeUndefined();
+    expect(button(wrapper, "Batalkan tawaranku")).toBeUndefined();
+    expect(wrapper.find('[data-testid="my-bid"]').exists()).toBe(true);
   });
 });

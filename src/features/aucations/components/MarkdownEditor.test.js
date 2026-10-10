@@ -1,21 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import MarkdownEditor from "./MarkdownEditor.vue";
 
-describe("MarkdownEditor", () => {
-  it("menampilkan label, nilai, dan mengirim update:modelValue", async () => {
-    const wrapper = mount(MarkdownEditor, { props: { id: "desc", modelValue: "halo" } });
-    expect(wrapper.find("label").attributes("for")).toBe("desc");
-    expect(wrapper.find("label").text()).toContain("Markdown");
-    expect(wrapper.find("textarea").element.value).toBe("halo");
+const state = vi.hoisted(() => ({ instances: [] }));
+vi.mock("@toast-ui/editor", () => ({
+  default: class {
+    constructor(options) {
+      this.options = options;
+      this.destroy = vi.fn();
+      state.instances.push(this);
+    }
+    on(event, callback) {
+      this.callback = callback;
+    }
+    getMarkdown() {
+      return "**tebal**";
+    }
+  },
+}));
 
-    await wrapper.find("textarea").setValue("baru");
-    expect(wrapper.emitted("update:modelValue")[0]).toEqual(["baru"]);
+describe("MarkdownEditor", () => {
+  it("membuat editor, meneruskan perubahan, dan menghancurkannya", async () => {
+    const wrapper = mount(MarkdownEditor, { props: { modelValue: "awal" } });
+    await vi.waitFor(() => expect(state.instances).toHaveLength(1));
+    const [editor] = state.instances;
+    expect(editor.options.initialValue).toBe("awal");
+    editor.callback();
+    expect(wrapper.emitted("update:modelValue")[0]).toEqual(["**tebal**"]);
+    wrapper.unmount();
+    expect(editor.destroy).toHaveBeenCalled();
   });
 
-  it("memakai nilai bawaan dan label kustom", () => {
-    const wrapper = mount(MarkdownEditor, { props: { id: "d", label: "Catatan" } });
-    expect(wrapper.find("label").text()).toBe("Catatan");
-    expect(wrapper.find("textarea").element.value).toBe("");
+  it("aman di-unmount sebelum editor selesai dimuat", () => {
+    const wrapper = mount(MarkdownEditor);
+    expect(wrapper.find('[role="group"]').attributes("aria-label")).toBe("Deskripsi");
+    wrapper.unmount();
   });
 });

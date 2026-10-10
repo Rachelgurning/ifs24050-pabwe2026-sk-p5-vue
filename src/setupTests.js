@@ -1,12 +1,19 @@
 import "@testing-library/jest-dom/vitest";
+import { afterEach, vi } from "vitest";
+import { enableAutoUnmount } from "@vue/test-utils";
 
-// jsdom belum mengimplementasikan <dialog>.showModal()/close().
-HTMLDialogElement.prototype.showModal = function showModal() {
-  this.setAttribute("open", "");
-};
-HTMLDialogElement.prototype.close = function close() {
-  this.removeAttribute("open");
-};
+// Dialog SweetAlert2 dimock agar tes tidak memunculkan modal asli.
+vi.mock("sweetalert2", () => ({
+  default: { fire: vi.fn(async () => ({ isConfirmed: true })) },
+}));
 
-URL.createObjectURL = () => "blob:preview";
-URL.revokeObjectURL = () => {};
+enableAutoUnmount(afterEach);
+
+URL.createObjectURL = vi.fn(() => "blob:preview");
+URL.revokeObjectURL = vi.fn();
+
+afterEach(() => {
+  localStorage.clear();
+  document.body.innerHTML = "";
+  vi.clearAllMocks();
+});

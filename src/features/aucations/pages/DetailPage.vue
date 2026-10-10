@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
+import { Clock, ImageOff } from "lucide-vue-next";
 import { useAucationsStore } from "../states/aucationsStore";
 import { useUsersStore } from "../../users/states/usersStore";
 import MarkdownViewer from "../components/MarkdownViewer.vue";
@@ -8,8 +9,11 @@ import ChangeModal from "../modals/ChangeModal.vue";
 import ChangeCoverModal from "../modals/ChangeCoverModal.vue";
 import BidModal from "../modals/BidModal.vue";
 import {
+  assetUrl,
   formatDate,
   formatRupiah,
+  getHighestBid,
+  getTimeLeft,
   isAucationClosed,
   showConfirmDialog,
   showErrorDialog,
@@ -20,105 +24,106 @@ const route = useRoute();
 const router = useRouter();
 const store = useAucationsStore();
 const usersStore = useUsersStore();
-const errorMessage = ref("");
-const changeModal = ref(null);
-const coverModal = ref(null);
-const bidModal = ref(null);
 
-const id = computed(() => route.params.aucationId);
-const bids = computed(() => store.aucation.bids ?? []);
-const isOwner = computed(() => store.aucation.user_id === usersStore.profile?.id);
+const modal = ref("");
+const item = computed(() => store.aucation);
+const isOwner = computed(() => usersStore.profile?.id === item.value?.user_id);
+const isClosed = computed(() => isAucationClosed(item.value.closed_at));
+const highest = computed(() => getHighestBid(item.value.bids));
+const history = computed(() => [...item.value.bids].sort((a, b) => b.bid - a.bid));
 
-async function load() {
-  errorMessage.value = "";
-  try {
-    await Promise.all([store.fetchAucation(id.value), usersStore.fetchProfile()]);
-  } catch (error) {
-    errorMessage.value = error.message;
-  }
-}
+const load = () => store.fetchAucation(route.params.aucationId);
 
-async function remove() {
-  if (!(await showConfirmDialog("Hapus lelang ini?"))) return;
-  try {
-    await showSuccessDialog(await store.removeAucation(id.value));
-    router.replace("/");
-  } catch (error) {
-    showErrorDialog(error.message);
-  }
-}
+const report = async (success, then) => {
+  if (!success) return showErrorDialog(store.message);
+  await showSuccessDialog(store.message);
+  await then();
+};
 
-async function cancelBid() {
-  try {
-    await showSuccessDialog(await store.removeBid(id.value));
-    await load();
-  } catch (error) {
-    showErrorDialog(error.message);
-  }
-}
+const onDelete = async () => {
+  if (!(await showConfirmDialog("Lelang ini akan dihapus permanen.", "Ya, hapus"))) return;
+  await report(await store.deleteAucation(item.value.id), () => router.push("/"));
+};
 
-onMounted(load);
+const onCancelBid = async () => {
+  if (!(await showConfirmDialog("Batalkan penawaranmu pada lelang ini?", "Ya, batalkan"))) return;
+  await report(await store.deleteBid(item.value.id), load);
+};
+
+const onSaved = () => load();
+
+onMounted(() => {
+  // Kosongkan data lelang sebelumnya agar tidak tampil sekilas saat berpindah item.
+  store.$patch({ aucation: null });
+  load();
+});
 </script>
 
 <template>
-  <RouterLink to="/" class="text-sm font-semibold text-indigo-700 underline">&larr; Kembali ke daftar</RouterLink>
+  <section aria-labelledby="detail-title">
+    <RouterLink to="/" class="text-sm font-semibold text-indigo-800 underline">Kembali ke dashboard</RouterLink>
 
-  <p v-if="store.isAucation" role="status" class="mt-4 text-slate-700">Memuat data...</p>
-  <article v-else-if="store.aucation && !errorMessage" class="mt-4 overflow-hidden rounded-xl bg-white shadow">
-    <img
-      v-if="store.aucation.cover"
-      :src="store.aucation.cover"
-      :alt="`Cover ${store.aucation.title}`"
-      width="800"
-      height="400"
-      class="h-64 w-full object-cover"
-    />
-    <div class="p-6">
-      <h1 class="text-2xl font-extrabold">{{ store.aucation.title }}</h1>
-      <p class="mt-1 inline-block rounded px-2 py-0.5 text-xs font-bold"
-        :class="isAucationClosed(store.aucation) ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-900'">
-        {{ isAucationClosed(store.aucation) ? "Ditutup" : "Berlangsung" }}
-      </p>
-      <MarkdownViewer class="mt-3" :content="store.aucation.description" />
-      <p class="mt-3 text-sm text-slate-700">Harga awal: {{ formatRupiah(store.aucation.start_bid) }}</p>
-      <p class="text-sm text-slate-700">Ditutup: {{ formatDate(store.aucation.closed_at) }}</p>
+    <p v-if="store.isAucation && !item" role="status" class="mt-10 text-slate-700">Memuat detail lelang...</p>
+    <p v-else-if="!item" class="mt-10 rounded-xl border border-dashed border-slate-400 p-10 text-center text-slate-700">
+      Lelang tidak ditemukan.
+    </p>
 
-      <h2 class="mt-6 font-bold">Riwayat penawaran</h2>
-      <ul class="mt-2 space-y-1 text-sm text-slate-700">
-        <li v-for="item in bids" :key="item.id">
-          {{ item.user.name }}: {{ formatRupiah(item.bid) }}
-        </li>
-        <li v-if="!bids.length">Belum ada penawaran.</li>
-      </ul>
+    <div v-else class="mt-6 grid gap-8 lg:grid-cols-5">
+      <div class="lg:col-span-3">
+        <img v-if="item.cover" :src="assetUrl(item.cover)" :alt="`Cover ${item.title}`" class="h-72 w-full rounded-2xl object-cover sm:h-96" />
+        <div v-else class="flex h-72 w-full items-center justify-center rounded-2xl bg-slate-200 text-slate-700 sm:h-96">
+          <ImageOff class="size-14" aria-hidden="true" />
+          <span class="sr-only">Tidak ada cover</span>
+        </div>
 
-      <div class="mt-6 flex flex-wrap gap-2">
-        <template v-if="isOwner">
-          <button type="button" class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white" @click="changeModal.open()">
-            Ubah lelang
-          </button>
-          <button type="button" class="rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white" @click="coverModal.open()">
-            Ganti cover
-          </button>
-          <button type="button" class="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white" @click="remove">
-            Hapus lelang
-          </button>
-        </template>
-        <template v-else>
-          <button type="button" class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white" @click="bidModal.open()">
-            Ajukan tawaran
-          </button>
-          <button type="button" class="rounded-lg bg-slate-700 px-4 py-2 font-semibold text-white" @click="cancelBid">
-            Batalkan tawaran
-          </button>
-        </template>
+        <h1 id="detail-title" class="mt-6 text-3xl font-extrabold text-indigo-950">{{ item.title }}</h1>
+        <p class="mt-1 text-slate-700">oleh {{ item.author.name }}</p>
+
+        <h2 class="mt-8 text-lg font-bold text-slate-900">Deskripsi</h2>
+        <div class="mt-2 rounded-xl bg-white p-4 ring-1 ring-slate-200">
+          <MarkdownViewer :content="item.description" />
+        </div>
       </div>
+
+      <aside class="space-y-6 lg:col-span-2" aria-label="Informasi penawaran">
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-slate-200">
+          <dl class="space-y-3 text-sm">
+            <div class="flex justify-between"><dt class="text-slate-700">Harga awal</dt><dd class="font-semibold">{{ formatRupiah(item.start_bid) }}</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-700">Tawaran tertinggi</dt><dd class="text-lg font-extrabold text-amber-800" data-testid="highest-bid">{{ highest ? formatRupiah(highest) : "Belum ada" }}</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-700">Ditutup</dt><dd class="font-semibold">{{ formatDate(item.closed_at) }}</dd></div>
+          </dl>
+          <p class="mt-4 flex items-center gap-2 font-semibold" :class="isClosed ? 'text-red-700' : 'text-emerald-800'">
+            <Clock class="size-5" aria-hidden="true" />
+            {{ getTimeLeft(item.closed_at) }}
+          </p>
+
+          <div v-if="isOwner" class="mt-6 flex flex-wrap gap-3">
+            <button type="button" class="rounded-lg bg-indigo-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-900" @click="modal = 'change'">Ubah data</button>
+            <button type="button" class="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-800 ring-1 ring-slate-400 hover:bg-slate-50" @click="modal = 'cover'">Ganti cover</button>
+            <button type="button" class="rounded-lg px-4 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-300 hover:bg-red-50" @click="onDelete">Hapus</button>
+          </div>
+          <div v-else-if="!isClosed" class="mt-6 flex flex-wrap items-center gap-3">
+            <button type="button" class="rounded-lg bg-amber-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-800" @click="modal = 'bid'">Ajukan penawaran</button>
+            <button v-if="item.my_bid" type="button" class="rounded-lg px-4 py-2.5 text-sm font-semibold text-red-700 ring-1 ring-red-300 hover:bg-red-50" @click="onCancelBid">Batalkan tawaranku</button>
+          </div>
+          <p v-if="item.my_bid" class="mt-4 text-sm text-slate-800" data-testid="my-bid">Tawaranmu: <strong>{{ formatRupiah(item.my_bid.bid) }}</strong></p>
+        </div>
+
+        <div class="rounded-2xl bg-white p-6 ring-1 ring-slate-200">
+          <h2 class="text-lg font-bold text-slate-900">Riwayat penawaran</h2>
+          <p v-if="!history.length" class="mt-2 text-sm text-slate-700">Belum ada yang menawar.</p>
+          <ol v-else class="mt-3 divide-y divide-slate-200" data-testid="bid-history">
+            <li v-for="entry in history" :key="entry.id" class="flex items-center justify-between py-2 text-sm">
+              <span class="font-semibold">{{ formatRupiah(entry.bid) }}</span>
+              <time :datetime="entry.created_at" class="text-slate-700">{{ formatDate(entry.created_at) }}</time>
+            </li>
+          </ol>
+        </div>
+      </aside>
     </div>
-    <ChangeModal ref="changeModal" :aucation="store.aucation" @changed="load" />
-    <ChangeCoverModal ref="coverModal" :aucation-id="store.aucation.id" @changed="load" />
-    <BidModal ref="bidModal" :aucation="store.aucation" @bid="load" />
-  </article>
-  <section v-else class="mt-4 rounded-xl bg-white p-6 shadow">
-    <h1 class="text-2xl font-extrabold">Lelang tidak ditemukan</h1>
-    <p role="alert" class="mt-2 text-slate-700">{{ errorMessage }}</p>
+
+    <ChangeModal v-if="modal === 'change'" :aucation="item" @close="modal = ''" @saved="onSaved" />
+    <ChangeCoverModal v-if="modal === 'cover'" :aucation="item" @close="modal = ''" @saved="onSaved" />
+    <BidModal v-if="modal === 'bid'" :aucation-id="item.id" :start-bid="item.start_bid" :highest-bid="highest" @close="modal = ''" @saved="onSaved" />
   </section>
 </template>

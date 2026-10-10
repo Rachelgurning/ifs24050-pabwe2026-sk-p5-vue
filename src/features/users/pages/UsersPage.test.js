@@ -1,38 +1,41 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-
-const dialogs = vi.hoisted(() => ({ showErrorDialog: vi.fn() }));
-const api = vi.hoisted(() => ({ getUsers: vi.fn() }));
-vi.mock("../../../helpers/toolsHelper", () => dialogs);
-vi.mock("../api/userApi", () => api);
-
-import { renderWithProviders } from "../../../test-utils";
 import UsersPage from "./UsersPage.vue";
+import { renderWithProviders } from "../../../test-utils";
+import * as userApi from "../api/userApi";
+
+vi.mock("../api/userApi");
 
 describe("UsersPage", () => {
-  beforeEach(() => vi.resetAllMocks());
-
-  it("menampilkan daftar pengguna", async () => {
-    api.getUsers.mockResolvedValue({ data: { users: [{ id: 1, name: "Ifs", email: "i@d.id" }] } });
+  it("menampilkan status memuat", async () => {
+    userApi.getUsers.mockReturnValue(new Promise(() => {}));
     const { wrapper } = await renderWithProviders(UsersPage);
-    expect(wrapper.text()).toContain("Ifs");
-    expect(wrapper.text()).toContain("i@d.id");
-    expect(wrapper.text()).not.toContain("Belum ada pengguna");
-    wrapper.unmount();
+    expect(wrapper.find('[role="status"]').text()).toMatch(/Memuat/);
   });
 
-  it("menampilkan keadaan kosong", async () => {
-    api.getUsers.mockResolvedValue({ data: { users: [] } });
-    const { wrapper } = await renderWithProviders(UsersPage);
-    expect(wrapper.text()).toContain("Belum ada pengguna");
-    wrapper.unmount();
-  });
-
-  it("menampilkan dialog error saat gagal memuat", async () => {
-    api.getUsers.mockRejectedValue(new Error("Gagal"));
+  it("menampilkan status kosong", async () => {
+    userApi.getUsers.mockResolvedValue({ status: "success", message: "ok", data: { users: [] } });
     const { wrapper } = await renderWithProviders(UsersPage);
     await flushPromises();
-    expect(dialogs.showErrorDialog).toHaveBeenCalledWith("Gagal");
-    wrapper.unmount();
+    expect(wrapper.text()).toContain("Belum ada pengguna.");
+  });
+
+  it("menampilkan daftar pengguna dengan foto atau inisial", async () => {
+    userApi.getUsers.mockResolvedValue({
+      status: "success",
+      message: "ok",
+      data: { users: [
+        { id: 1, name: "Budi", email: "b@x.id", photo: "img/b.png" },
+        { id: 2, name: "Siti", email: "s@x.id", photo: null },
+      ] },
+    });
+    const { wrapper } = await renderWithProviders(UsersPage);
+    await flushPromises();
+    const items = wrapper.findAll('[data-testid="user-list"] li');
+    expect(items).toHaveLength(2);
+    expect(items[0].find("img").attributes("src")).toBe("https://open-api.delcom.org/img/b.png");
+    expect(items[1].find("img").exists()).toBe(false);
+    expect(items[1].text()).toContain("S");
+    expect(items[1].text()).toContain("s@x.id");
   });
 });

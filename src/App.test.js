@@ -1,47 +1,57 @@
-import { describe, expect, it, vi } from "vitest";
-import { mount, flushPromises } from "@vue/test-utils";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia } from "pinia";
-import { createMemoryHistory, createRouter } from "vue-router";
-
-vi.mock("sweetalert2", () => ({ default: { fire: vi.fn() } }));
-
+import { createMemoryHistory } from "vue-router";
 import App from "./App.vue";
-import { routes } from "./router";
+import { createAppRouter } from "./router";
 import { putAccessToken } from "./helpers/apiHelper";
+import * as userApi from "./features/users/api/userApi";
+import * as aucationApi from "./features/aucations/api/aucationApi";
 
-async function renderApp(path) {
-  const router = createRouter({ history: createMemoryHistory(), routes });
+vi.mock("./features/users/api/userApi");
+vi.mock("./features/aucations/api/aucationApi");
+
+const boot = async (path) => {
+  const router = createAppRouter(createMemoryHistory());
   router.push(path);
   await router.isReady();
-  const wrapper = mount(App, { global: { plugins: [createPinia(), router] }, attachTo: document.body });
+  const wrapper = mount(App, { attachTo: document.body, global: { plugins: [createPinia(), router] } });
+  await vi.waitFor(() => expect(wrapper.html()).not.toBe("<!--v-if-->"));
   await flushPromises();
   return { wrapper, router };
-}
+};
 
-describe("App", () => {
-  it("menampilkan halaman login", async () => {
-    vi.stubGlobal("fetch", vi.fn());
-    const { wrapper } = await renderApp("/auth/login");
-    expect(wrapper.find("h1").text()).toBe("Masuk Akun");
-    wrapper.unmount();
+afterEach(() => vi.useRealTimers());
+
+describe("App (integrasi)", () => {
+  it("tamu diarahkan ke halaman login", async () => {
+    const { wrapper, router } = await boot("/");
+    await vi.waitFor(() => expect(wrapper.find("#login-submit-button").exists()).toBe(true));
+    expect(router.currentRoute.value.path).toBe("/auth/login");
+    expect(wrapper.find("#login-email-input").exists()).toBe(true);
   });
 
-  it("menampilkan halaman 404 untuk rute tidak dikenal", async () => {
-    const { wrapper } = await renderApp("/tidak-ada");
-    expect(wrapper.find("h1").text()).toContain("404");
-    wrapper.unmount();
+  it("halaman register dapat dibuka tanpa login", async () => {
+    const { wrapper } = await boot("/auth/register");
+    await vi.waitFor(() => expect(wrapper.find("#register-submit-button").exists()).toBe(true));
   });
 
-  it("menampilkan dashboard lelang untuk pengguna yang masuk", async () => {
+  it("pengguna login melihat dashboard dengan data lelang", async () => {
     putAccessToken("token");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: { aucations: [] } }) }),
-    );
-    const { wrapper } = await renderApp("/");
-    expect(wrapper.find("h1").text()).toBe("Daftar Lelang");
-    expect(wrapper.text()).toContain("Belum ada lelang");
-    wrapper.unmount();
-    localStorage.clear();
+    userApi.getMe.mockResolvedValue({ status: "success", message: "ok", data: { user: { id: 1, name: "Budi", email: "b@x.id" } } });
+    aucationApi.getAucations.mockResolvedValue({
+      status: "success",
+      message: "ok",
+      data: { aucations: [{ id: 9, user_id: 2, title: "Lukisan", description: "cat minyak", cover: null, start_bid: 1000, closed_at: "2099-01-01 00:00:00", bids: [], author: { name: "Siti" } }] },
+    });
+    const { wrapper } = await boot("/");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Lukisan"));
+    expect(wrapper.find("h1").text()).toBe("Dashboard Lelang");
+    expect(wrapper.find('[data-testid="navbar-name"]').text()).toBe("Budi");
+  });
+
+  it("rute tidak dikenal menampilkan halaman 404", async () => {
+    const { wrapper } = await boot("/tidak/ada");
+    await vi.waitFor(() => expect(wrapper.text()).toContain("Halaman tidak ditemukan"));
   });
 });

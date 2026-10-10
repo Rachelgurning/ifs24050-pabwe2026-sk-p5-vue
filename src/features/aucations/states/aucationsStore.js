@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import * as api from "../api/aucationApi";
-import { unwrap } from "../../../helpers/apiHelper";
+import * as aucationApi from "../api/aucationApi";
 
 export const useAucationsStore = defineStore("aucations", () => {
   const aucations = ref([]);
@@ -23,51 +22,99 @@ export const useAucationsStore = defineStore("aucations", () => {
   const isAucationDeleteAll = ref(false);
   const isAucationDeletedAll = ref(false);
 
-  async function load(target, call) {
-    isAucation.value = true;
-    try {
-      target.value = await call();
-    } finally {
-      isAucation.value = false;
-    }
-  }
+  const message = ref("");
+  const errors = ref({});
 
-  const fetchAucations = (params = {}) =>
-    load(aucations, async () => unwrap(await api.getAucations(params), "aucations") ?? []);
-  const fetchAucation = (id) => {
-    aucation.value = null;
-    return load(aucation, async () => unwrap(await api.getAucation(id), "aucation"));
+  const finish = (response) => {
+    message.value = response.message;
+    errors.value = response.data?.field || {};
+    return response.status === "success";
   };
 
-  async function mutate(busy, done, call) {
-    busy.value = true;
+  /** Jalankan mutasi dan lacak status proses + status berhasil. */
+  async function mutate(loading, done, request) {
+    loading.value = true;
     done.value = false;
-    try {
-      const json = await call();
-      done.value = true;
-      return json.message;
-    } finally {
-      busy.value = false;
-    }
+    const success = finish(await request());
+    done.value = success;
+    loading.value = false;
+    return success;
   }
 
-  const addAucation = (body) => mutate(isAucationAdd, isAucationAdded, () => api.postAucation(body));
-  const changeAucation = (id, body) =>
-    mutate(isAucationChange, isAucationChanged, () => api.putAucation(id, body));
-  const changeCover = (id, form) =>
-    mutate(isAucationChangeCover, isAucationChangedCover, () => api.postCover(id, form));
-  const removeAucation = (id) => mutate(isAucationDelete, isAucationDeleted, () => api.deleteAucation(id));
-  const addBid = (id, body) => mutate(isBidAdd, isBidAdded, () => api.postBid(id, body));
-  const removeBid = (id) => mutate(isBidDelete, isBidDeleted, () => api.deleteBid(id));
-  const removeAllAucations = () =>
-    mutate(isAucationDeleteAll, isAucationDeletedAll, () => api.deleteAllAucations());
+  async function fetchAucations(filters = {}) {
+    isAucation.value = true;
+    const response = await aucationApi.getAucations(filters);
+    if (finish(response)) aucations.value = response.data.aucations;
+    isAucation.value = false;
+  }
+
+  async function fetchAucation(id) {
+    isAucation.value = true;
+    const response = await aucationApi.getAucation(id);
+    // Data lama dipertahankan selama memuat ulang agar halaman tidak berkedip.
+    aucation.value = finish(response) ? response.data.aucation : null;
+    isAucation.value = false;
+  }
+
+  const addAucation = (payload) =>
+    mutate(isAucationAdd, isAucationAdded, () =>
+      aucationApi.addAucation(payload)
+    );
+
+  const changeAucation = (id, payload) =>
+    mutate(isAucationChange, isAucationChanged, () =>
+      aucationApi.changeAucation(id, payload)
+    );
+
+  const changeCover = (id, file) =>
+    mutate(isAucationChangeCover, isAucationChangedCover, () =>
+      aucationApi.changeCover(id, file)
+    );
+
+  const deleteAucation = (id) =>
+    mutate(isAucationDelete, isAucationDeleted, () =>
+      aucationApi.deleteAucation(id)
+    );
+
+  const addBid = (id, bid) =>
+    mutate(isBidAdd, isBidAdded, () => aucationApi.addBid(id, bid));
+
+  const deleteBid = (id) =>
+    mutate(isBidDelete, isBidDeleted, () => aucationApi.deleteBid(id));
+
+  const deleteAllAucations = () =>
+    mutate(isAucationDeleteAll, isAucationDeletedAll, () =>
+      aucationApi.deleteAllAucations()
+    );
 
   return {
-    aucations, aucation, isAucation,
-    isAucationAdd, isAucationAdded, isAucationChange, isAucationChanged,
-    isAucationChangeCover, isAucationChangedCover, isAucationDelete, isAucationDeleted,
-    isBidAdd, isBidAdded, isBidDelete, isBidDeleted, isAucationDeleteAll, isAucationDeletedAll,
-    fetchAucations, fetchAucation, addAucation, changeAucation, changeCover,
-    removeAucation, addBid, removeBid, removeAllAucations,
+    aucations,
+    aucation,
+    isAucation,
+    isAucationAdd,
+    isAucationAdded,
+    isAucationChange,
+    isAucationChanged,
+    isAucationChangeCover,
+    isAucationChangedCover,
+    isAucationDelete,
+    isAucationDeleted,
+    isBidAdd,
+    isBidAdded,
+    isBidDelete,
+    isBidDeleted,
+    isAucationDeleteAll,
+    isAucationDeletedAll,
+    message,
+    errors,
+    fetchAucations,
+    fetchAucation,
+    addAucation,
+    changeAucation,
+    changeCover,
+    deleteAucation,
+    addBid,
+    deleteBid,
+    deleteAllAucations,
   };
 });

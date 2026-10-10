@@ -1,42 +1,69 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { postLogin, postRegister } from "../api/authApi";
-import { getAccessToken, putAccessToken, removeAccessToken } from "../../../helpers/apiHelper";
+import * as authApi from "../api/authApi";
+import {
+  getAccessToken,
+  putAccessToken,
+  removeAccessToken,
+} from "../../../helpers/apiHelper";
 
 export const useAuthStore = defineStore("auth", () => {
   const token = ref(getAccessToken());
   const isAuthLogin = ref(false);
   const isAuthRegister = ref(false);
   const isAuthLogout = ref(false);
+  const message = ref("");
+  const errors = ref({});
+
   const isAuthenticated = computed(() => Boolean(token.value));
 
-  async function login(payload) {
+  const finish = (response) => {
+    message.value = response.message;
+    errors.value = response.data?.field || {};
+    return response.status === "success";
+  };
+
+  async function login(email, password) {
     isAuthLogin.value = true;
-    try {
-      const json = await postLogin(payload);
-      token.value = json.data.token;
-      putAccessToken(token.value);
-      return json.message;
-    } finally {
-      isAuthLogin.value = false;
+    const response = await authApi.login(email, password);
+    const success = finish(response);
+    if (success) {
+      putAccessToken(response.data.token);
+      token.value = response.data.token;
     }
+    isAuthLogin.value = false;
+    return success;
   }
 
-  async function register(payload) {
+  async function register(name, email, password) {
     isAuthRegister.value = true;
-    try {
-      return (await postRegister(payload)).message;
-    } finally {
-      isAuthRegister.value = false;
-    }
+    const response = await authApi.register(name, email, password);
+    const success = finish(response);
+    isAuthRegister.value = false;
+    return success;
   }
 
-  function logout() {
+  async function logout() {
     isAuthLogout.value = true;
+    const response = await authApi.logout();
+    const success = finish(response);
+    // Token lokal selalu dibersihkan agar pengguna bisa keluar meski API gagal.
     removeAccessToken();
     token.value = null;
     isAuthLogout.value = false;
+    return success;
   }
 
-  return { token, isAuthLogin, isAuthRegister, isAuthLogout, isAuthenticated, login, register, logout };
+  return {
+    token,
+    isAuthenticated,
+    isAuthLogin,
+    isAuthRegister,
+    isAuthLogout,
+    message,
+    errors,
+    login,
+    register,
+    logout,
+  };
 });

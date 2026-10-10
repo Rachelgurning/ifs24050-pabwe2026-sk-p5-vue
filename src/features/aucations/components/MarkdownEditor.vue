@@ -1,22 +1,39 @@
 <script setup>
-defineProps({
+import { onBeforeUnmount, onMounted, ref } from "vue";
+
+const props = defineProps({
   modelValue: { type: String, default: "" },
-  id: { type: String, required: true },
-  label: { type: String, default: "Deskripsi (mendukung Markdown)" },
+  label: { type: String, default: "Deskripsi" },
 });
-defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:modelValue"]);
+
+const root = ref(null);
+let editor = null;
+
+onMounted(async () => {
+  const [{ default: Editor }] = await Promise.all([
+    import("@toast-ui/editor"),
+    import("@toast-ui/editor/dist/toastui-editor.css"),
+  ]);
+  editor = new Editor({
+    el: root.value,
+    initialValue: props.modelValue,
+    height: "240px",
+    initialEditType: "wysiwyg",
+    previewStyle: "tab",
+    usageStatistics: false,
+    hideModeSwitch: true,
+  });
+  editor.on("change", () => emit("update:modelValue", editor.getMarkdown()));
+});
+
+onBeforeUnmount(() => {
+  if (editor) editor.destroy();
+});
 </script>
 
 <template>
-  <div>
-    <label :for="id" class="mb-1 block text-sm font-semibold text-slate-700">{{ label }}</label>
-    <textarea
-      :id="id"
-      required
-      rows="5"
-      :value="modelValue"
-      class="w-full rounded-lg border border-slate-400 px-3 py-2 font-mono text-sm"
-      @input="$emit('update:modelValue', $event.target.value)"
-    ></textarea>
+  <div role="group" :aria-label="label">
+    <div ref="root" data-testid="markdown-editor"></div>
   </div>
 </template>

@@ -1,26 +1,46 @@
 <script setup>
-defineProps({ open: { type: Boolean, default: false } });
+import { computed } from "vue";
+import { RouterLink, useRoute } from "vue-router";
+import { Gavel, LayoutDashboard, UserRound, Users } from "lucide-vue-next";
 
-const menus = [
-  { to: "/", label: "Dashboard Lelang" },
-  { to: "/?tab=me", label: "Lelang Saya" },
-  { to: "/users", label: "Daftar Pengguna" },
-  { to: "/profile", label: "Profil Saya" },
+defineProps({ open: { type: Boolean, default: false } });
+const emit = defineEmits(["close"]);
+const route = useRoute();
+
+const items = [
+  { label: "Dashboard Lelang", to: "/", icon: LayoutDashboard },
+  { label: "Lelang Saya", to: "/?tab=mine", icon: Gavel },
+  { label: "Daftar Pengguna", to: "/users", icon: Users },
+  { label: "Profil Saya", to: "/profile", icon: UserRound },
 ];
+
+const links = computed(() =>
+  items.map((item) => ({ ...item, active: route.fullPath === item.to }))
+);
 </script>
 
 <template>
-  <aside id="sidebar-menu" :class="open ? 'block' : 'hidden'" class="bg-indigo-50 md:block md:w-56 md:shrink-0">
-    <nav aria-label="Menu lelang" class="flex flex-col gap-1 p-3 text-sm font-semibold">
-      <RouterLink
-        v-for="menu in menus"
-        :key="menu.to"
-        :to="menu.to"
-        class="rounded-lg px-3 py-2 text-indigo-900 hover:bg-indigo-100"
-        exact-active-class="bg-indigo-200"
-      >
-        {{ menu.label }}
-      </RouterLink>
-    </nav>
-  </aside>
+  <div>
+    <button v-if="open" type="button" aria-label="Tutup menu navigasi" class="fixed inset-0 top-16 z-30 bg-slate-900/50 lg:hidden" @click="emit('close')"></button>
+    <aside
+      :class="[open ? 'flex' : 'hidden', 'fixed bottom-0 left-0 top-16 z-40 w-64 flex-col border-r border-slate-300 bg-white p-4 lg:flex']"
+      data-testid="sidebar"
+    >
+      <nav aria-label="Navigasi utama">
+        <ul class="space-y-1">
+          <li v-for="item in links" :key="item.to">
+            <RouterLink
+              :to="item.to"
+              :aria-current="item.active ? 'page' : undefined"
+              :class="[item.active ? 'bg-indigo-950 text-white' : 'text-slate-800 hover:bg-slate-100', 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold']"
+              @click="emit('close')"
+            >
+              <component :is="item.icon" class="size-5" aria-hidden="true" />
+              {{ item.label }}
+            </RouterLink>
+          </li>
+        </ul>
+      </nav>
+    </aside>
+  </div>
 </template>
