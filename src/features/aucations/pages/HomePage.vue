@@ -234,7 +234,7 @@ async function load() {
 watch(activeTab, (value) => {
   router.replace({
     query: {
-      ...(value !== 'all' ? { tab: value } : {}),
+      ...(value === 'all' ? {} : { tab: value }),
     },
   })
 
