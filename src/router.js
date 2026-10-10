@@ -63,20 +63,21 @@ export const routes = [
 /** Guard rute: halaman privat butuh token, halaman auth hanya untuk tamu. */
 export const authGuard = (to) => {
   const isLoggedIn = Boolean(getAccessToken());
-  if (to.matched.some((r) => r.meta.requiresAuth) && !isLoggedIn) {
-    return { name: "login" };
-  }
-  if (to.matched.some((r) => r.meta.guestOnly) && isLoggedIn) {
-    return { name: "home" };
-  }
-  return true;
+  const needsLogin = to.matched.some((r) => r.meta.requiresAuth) && !isLoggedIn;
+  const isGuestOnly = to.matched.some((r) => r.meta.guestOnly) && isLoggedIn;
+
+  let result = true;
+  if (needsLogin) result = { name: "login" };
+  else if (isGuestOnly) result = { name: "home" };
+  return result;
 };
 
 export const createAppRouter = (history = createWebHistory()) => {
   const instance = createRouter({ history, routes });
   instance.beforeEach(authGuard);
   instance.afterEach((to) => {
-    document.title = `${to.meta.title || "Delcom Auction"} | Delcom Auction`;
+    const pageTitle = typeof to.meta.title === "string" ? to.meta.title : "Delcom Auction";
+    document.title = `${pageTitle} | Delcom Auction`;
   });
   return instance;
 };
