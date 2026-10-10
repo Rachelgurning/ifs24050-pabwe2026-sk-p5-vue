@@ -20,7 +20,10 @@ export function showConfirmDialog(title, text) {
 }
 
 export function formatRupiah(value) {
-  if (isNaN(value)) return 'Rp 0';
+  if (Number.isNaN(Number(value))) {
+    return 'Rp 0';
+  }
+
   return new Intl.NumberFormat('id-ID', {
     style: 'currency',
     currency: 'IDR',
@@ -30,6 +33,14 @@ export function formatRupiah(value) {
 
 export function formatDate(dateString) {
   if (!dateString) return '-';
-  const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+
+  const options = {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  };
+
   return new Date(dateString).toLocaleDateString('id-ID', options);
 }

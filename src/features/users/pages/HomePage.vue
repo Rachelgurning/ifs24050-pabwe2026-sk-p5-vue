@@ -14,7 +14,7 @@
     <!-- Grid Lelang -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div v-for="item in aucationsStore.aucations" :key="item.id" class="bg-white rounded-lg shadow overflow-hidden flex flex-col">
-        <img :src="item.cover || 'https://via.placeholder.com/300'" class="h-48 w-full object-cover" />
+        <img :src="item.cover || 'https://via.placeholder.com/300'" :alt="`Foto lelang ${item.title}`" class="h-48 w-full object-cover" />
         <div class="p-4 flex-1 flex flex-col justify-between">
           <div>
             <h3 class="font-bold text-lg mb-1">{{ item.title }}</h3>

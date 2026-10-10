@@ -1,4 +1,4 @@
-import { apiFetch, BASE_URL, getAccessToken } from '../../../helpers/apiHelper';
+import { apiFetch } from '../../../helpers/apiHelper';
 export const getUsersApi = () => apiFetch('/users');
 export const getProfileApi = () => apiFetch('/users/me');
 export const updateProfileApi = (data) => apiFetch('/users/me', { method:'PUT', body:JSON.stringify(data) });

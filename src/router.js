@@ -42,11 +42,17 @@ const router = createRouter({
   },
 });
 
-router.beforeEach((to) => {
+router.beforeEach((to, from, next) => {
   const token = getAccessToken();
-  if (to.meta.auth && !token) return { name: 'login', query: { redirect: to.fullPath } };
-  if (to.meta.guest && token) return { name: 'home' };
-  return true;
+  if (to.meta.auth && !token) {
+    next({ name: 'login', query: { redirect: to.fullPath } });
+    return;
+  }
+  if (to.meta.guest && token) {
+    next({ name: 'home' });
+    return;
+  }
+  next();
 });
 
 export default router;

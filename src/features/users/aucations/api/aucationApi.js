@@ -1,8 +1,9 @@
-import { apiFetch } from '../../../helpers/apiHelper';
+import { apiFetch } from '../../../../helpers/apiHelper';
 
 export async function getAucationsApi(params = {}) {
   const query = new URLSearchParams(params).toString();
-  return apiFetch(`/aucations${query ? `?${query}` : ''}`);
+  const endpoint = query ? `/aucations?${query}` : '/aucations';
+  return apiFetch(endpoint);
 }
 
 export async function getAucationDetailApi(id) {
@@ -24,13 +25,10 @@ export async function updateAucationApi(id, data) {
 }
 
 export async function uploadCoverApi(id, formData) {
-  const token = localStorage.getItem('accessToken') || '';
-  const response = await fetch(`${DELCOM_BASEURL}/aucations/${id}/cover`, {
+  return apiFetch(`/aucations/${id}/cover`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
-  return response.json();
 }
 
 export async function deleteAucationApi(id) {

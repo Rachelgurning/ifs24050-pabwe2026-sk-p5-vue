@@ -1,6 +1,6 @@
 <template>
 <div class="space-y-6"><div><h1 class="page-title">Profil Saya</h1><p class="page-subtitle">Kelola informasi profil, foto, dan keamanan akun.</p></div>
-<div v-if="usersStore.isLoading" class="rounded-2xl bg-white p-8 text-center text-slate-600" role="status">Memuat profil...</div>
+<output v-if="usersStore.isLoading" class="block rounded-2xl bg-white p-8 text-center text-slate-600" aria-live="polite">Memuat profil...</output>
 <div v-else class="grid gap-6 lg:grid-cols-3">
 <div class="rounded-2xl bg-white border p-6 text-center"><img :src="usersStore.profile?.photo || avatar" :alt="`Foto profil ${usersStore.profile?.name || 'pengguna'}`" class="mx-auto h-28 w-28 rounded-full object-cover bg-slate-100" @error="useFallback"/><h2 class="mt-4 text-xl font-bold">{{usersStore.profile?.name || '-'}}</h2><p class="text-sm text-slate-600">{{usersStore.profile?.email || '-'}}</p><label for="profile-photo-input" class="mt-5 inline-block cursor-pointer rounded-xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-800">{{usersStore.isUploadingPhoto?'Mengunggah...':'Ganti Foto'}}<input id="profile-photo-input" type="file" accept="image/*" class="hidden" @change="changePhoto"/></label></div>
 <div class="lg:col-span-2 space-y-6"><form class="rounded-2xl bg-white border p-6 space-y-4" aria-label="Form informasi profil" @submit.prevent="saveProfile"><h2 class="text-lg font-bold">Informasi Profil</h2><div><label class="label" for="profile-name-input">Nama</label><input id="profile-name-input" v-model="form.name" class="input" autocomplete="name" required /></div><div><label class="label" for="profile-email-input">Email</label><input id="profile-email-input" v-model="form.email" class="input" type="email" autocomplete="email" required /></div><button type="submit" class="btn-primary" :disabled="usersStore.isUpdating">Simpan Perubahan</button></form>
@@ -10,8 +10,44 @@
 import { onMounted, reactive } from 'vue'; import { useUsersStore } from '../states/usersStore'; import { showErrorDialog, showSuccessDialog } from '../../../helpers/toolsHelper';
 const usersStore=useUsersStore(); const avatar='https://ui-avatars.com/api/?name=User'; const form=reactive({name:'',email:''}); const password=reactive({password:'',new_password:'',new_password_confirmation:''});
 function useFallback(e){e.target.src=avatar}
-onMounted(async()=>{const r=await usersStore.fetchProfile();if(r.status==='success'){form.name=usersStore.profile?.name||'';form.email=usersStore.profile?.email||''}})
-async function saveProfile(){const r=await usersStore.updateProfile(form); if(r.status==='success')showSuccessDialog('Berhasil','Profil diperbarui.'); else showErrorDialog('Gagal',r.message||'Gagal memperbarui profil.')}
-async function changePhoto(e){const file=e.target.files?.[0];if(!file)return;const r=await usersStore.uploadPhoto(file);if(r.status==='success')showSuccessDialog('Berhasil','Foto profil diperbarui.');else showErrorDialog('Gagal',r.message||'Gagal mengunggah foto.')}
-async function savePassword(){if(password.new_password!==password.new_password_confirmation)return showErrorDialog('Gagal','Konfirmasi password baru tidak sama.');const r=await usersStore.changePassword(password);if(r.status==='success'){showSuccessDialog('Berhasil','Password berhasil diubah.');Object.assign(password,{password:'',new_password:'',new_password_confirmation:''})}else showErrorDialog('Gagal',r.message||'Gagal mengubah password.')}
+onMounted(async () => {
+  const result = await usersStore.fetchProfile();
+  if (result.status === 'success') {
+    form.name = usersStore.profile?.name || '';
+    form.email = usersStore.profile?.email || '';
+  }
+})
+async function saveProfile() {
+  const result = await usersStore.updateProfile(form);
+  if (result.status === 'success') {
+    await showSuccessDialog('Berhasil', 'Profil diperbarui.');
+  } else {
+    await showErrorDialog('Gagal', result.message || 'Gagal memperbarui profil.');
+  }
+}
+async function changePhoto(event) {
+  const file = event.target.files?.[0];
+  if (!file) {
+    return;
+  }
+  const result = await usersStore.uploadPhoto(file);
+  if (result.status === 'success') {
+    await showSuccessDialog('Berhasil', 'Foto profil diperbarui.');
+  } else {
+    await showErrorDialog('Gagal', result.message || 'Gagal mengunggah foto.');
+  }
+}
+async function savePassword() {
+  if (password.new_password !== password.new_password_confirmation) {
+    await showErrorDialog('Gagal', 'Konfirmasi password baru tidak sama.');
+    return;
+  }
+  const result = await usersStore.changePassword(password);
+  if (result.status === 'success') {
+    await showSuccessDialog('Berhasil', 'Password berhasil diubah.');
+    Object.assign(password, { password: '', new_password: '', new_password_confirmation: '' });
+  } else {
+    await showErrorDialog('Gagal', result.message || 'Gagal mengubah password.');
+  }
+}
 </script>
